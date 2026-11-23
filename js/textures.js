@@ -761,7 +761,7 @@
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '500 22px Prompt, Tahoma, sans-serif';
-    ctx.fillText(s.title || 'ติดต่อออกบูธ 3D + คูปองหน้าร้าน', 256, 94);
+    ctx.fillText(s.title || 'พื้นที่โฆษณา 3D สระหลวง อ.หนองไผ่', 256, 94);
 
     const tex = new THREE.CanvasTexture(c);
     tex.encoding = THREE.sRGBEncoding;

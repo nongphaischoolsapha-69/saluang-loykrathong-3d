@@ -4,16 +4,16 @@
   const TOTO = (window.TOTO = window.TOTO || {});
 
   // ============================================================
-  // MONETIZATION & SHOP COUPON SETTINGS (Nine สามารถแก้ข้อมูลจริงตรงนี้)
+  // MONETIZATION & SHOP INFO SETTINGS (Nine สามารถแก้ข้อมูลจริงตรงนี้)
   // ============================================================
   TOTO.MONETIZATION = {
-    promptPayId: '08X-XXX-XXXX',
-    promptPayName: 'ร้านหอยทอด โตโต้ • สระหลวง หนองไผ่',
-    customQrImageUrl: '',
-    shopCouponTitle: 'คูปองส่วนลดหน้าร้าน หอยทอด โตโต้',
-    shopCouponOffer: 'แสดงการ์ดคำอธิษฐานนี้หน้าร้าน รับส่วนลด 5 บาท หรือเพิ่มไข่ฟรี 1 ฟอง',
-    shopCouponAddress: 'ซอยสระหลวงใต้ (ซอยเทศบาล 34) หน้าร้านตึกชมพู สระหลวง อ.หนองไผ่',
-    shopCouponCode: 'SALUANG-69'
+    promptPayId: '',
+    promptPayName: 'ด.ช. วรพัทธ์ ส่งกรม',
+    promptPayMasked: 'บัญชี xxx-x-x5044-x (รับเงินได้จากทุกธนาคาร)',
+    customQrImageUrl: 'assets/promptpay-qr.jpg',
+    shopCardTitle: 'ร้านหอยทอด โตโต้ • สระหลวง หนองไผ่',
+    shopCardSubtitle: 'แวะชิมหอยทอดกรอบ ออส่วน ผัดไทยร้อนๆ ได้ที่หน้าร้านจริง',
+    shopAddress: 'ซอยสระหลวงใต้ (ซอยเทศบาล 34) หน้าร้านตึกชมพู สระหลวง อ.หนองไผ่'
   };
 
   TOTO.KRATHONG_BASES = [

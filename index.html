@@ -59,16 +59,16 @@
           <span class="loc-name">สระหลวง • หนองไผ่</span>
           <span class="loc-divider"></span>
           <button type="button" class="loc-search-btn" id="btn-search-krathong" title="ค้นหากระทงในสระหลวง">
-            🪷 ลอยแล้ว <b id="ui-pond-count">3</b> 🔍
+            🪷 <span class="hide-xs">ลอยแล้ว </span><b id="ui-pond-count">3</b> 🔍
           </button>
           <span class="loc-divider"></span>
-          <span class="loc-online"><span class="online-dot"></span>ออนไลน์ <b id="ui-online-count">1</b></span>
+          <span class="loc-online"><span class="online-dot"></span><span class="hide-xs">ออนไลน์ </span><b id="ui-online-count">1</b></span>
         </div>
 
         <div class="top-tools-wrap">
           <button class="icon-tool-btn tool-btn-gold" id="btn-customize-avatar" title="แต่งตัว Avatar 3D ออนไลน์">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <span>แต่งตัว 3D</span>
+            <span>แต่งตัว<span class="hide-xs"> 3D</span></span>
           </button>
 
           <div class="landmark-dropdown-wrap">
@@ -91,10 +91,12 @@
 
           <button class="icon-tool-btn" id="btn-photo-mode" title="โหมดถ่ายรูป">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span class="mobile-only-lbl">ถ่ายรูป</span>
           </button>
 
           <button class="icon-tool-btn" id="btn-mute" title="เปิด / ปิดเสียง">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            <span class="mobile-only-lbl">เสียง</span>
           </button>
         </div>
       </div>
@@ -104,7 +106,6 @@
         <div class="stall-bar-title">ร้านหอยทอด โตโต้ • ซอยสระหลวงใต้</div>
         <div class="stall-bar-actions">
           <button class="btn-outline-gold" id="btn-open-cook">ลองผัดหอยทอด 1 กระทะ</button>
-          <button class="btn-outline-ivory" id="btn-shop-coupon">รับคูปองหน้าร้าน</button>
         </div>
       </div>
 
@@ -139,8 +140,8 @@
             <div class="fry-fill" id="fry-fill"></div>
           </div>
           <div class="fry-controls">
-            <button class="btn-primary-gold" id="btn-stir">ผัดพลิกกระทะ (Space)</button>
-            <button class="btn-outline-ivory" id="btn-plate">ตักใส่จานเสิร์ฟ (E)</button>
+            <button class="btn-primary-gold" id="btn-stir">ผัดพลิกกระทะ<span class="kbd-hint"> (Space)</span></button>
+            <button class="btn-outline-ivory" id="btn-plate">ตักใส่จานเสิร์ฟ<span class="kbd-hint"> (E)</span></button>
             <button class="btn-text-subtle" id="btn-clear-pan">ล้างกระทะ</button>
           </div>
         </div>
@@ -164,10 +165,10 @@
       <div id="main-dock">
         <button class="btn-primary-gold dock-main-cta" id="btn-open-krathong">ประดิษฐ์และลอยกระทง</button>
         <div class="dock-sub-row">
-          <button class="dock-sub-btn" id="btn-emotes">ทักทาย / แสดงท่า</button>
-          <button class="dock-sub-btn" id="btn-firework">จุดพลุ / ปล่อยโคม</button>
-          <button class="dock-sub-btn" id="btn-visit-toto">แวะร้านหอยทอด โตโต้</button>
-          <button class="dock-sub-btn" id="btn-donate-top">สนับสนุน / VIP</button>
+          <button class="dock-sub-btn" id="btn-emotes">🙏 <span class="d-full">ทักทาย / แสดงท่า</span><span class="m-short">ทักทาย</span></button>
+          <button class="dock-sub-btn" id="btn-firework">🎆 <span class="d-full">จุดพลุ / ปล่อยโคม</span><span class="m-short">พลุ/โคม</span></button>
+          <button class="dock-sub-btn" id="btn-visit-toto">🦪 <span class="d-full">แวะร้านหอยทอด โตโต้</span><span class="m-short">ร้านโตโต้</span></button>
+          <button class="dock-sub-btn" id="btn-donate-top">👑 <span class="d-full">สนับสนุน / VIP</span><span class="m-short">VIP</span></button>
         </div>
       </div>
 
@@ -228,7 +229,7 @@
               <div class="ritual-sweet-zone"></div>
               <div class="ritual-cursor" id="ritual-cursor"></div>
             </div>
-            <button type="button" class="btn-primary-gold ritual-big-btn" id="btn-ritual-push">🌊 กวักน้ำส่งกระทง! (Space)</button>
+            <button type="button" class="btn-primary-gold ritual-big-btn" id="btn-ritual-push">🌊 กวักน้ำส่งกระทง!<span class="kbd-hint"> (Space)</span></button>
           </div>
 
           <div id="ritual-result-banner" class="ritual-result-banner" style="display:none;"></div>
@@ -311,15 +312,17 @@
           <button class="modal-close-btn" id="btn-close-donate">✕</button>
         </div>
         <p class="modal-desc">
-          ร่วมสมทบทุนดูแลเซิร์ฟเวอร์งานลอยกระทงสระหลวง เพื่อปลดล็อกกระทงทองคำป้ายกรอบทอง พร้อมพลุเฉลิมฉลองเหนือกลางน้ำพุ
+          ร่วมทิปสนับสนุนตามศรัทธา ดูแลเซิร์ฟเวอร์งานลอยกระทงสระหลวง เพื่อปลดล็อกกระทงทองคำ ชุด/ชฎา/ปีก VIP และพลุเฉลิมฉลอง
         </p>
 
-        <div class="k-label">เลือกยอดสนับสนุน</div>
-        <div class="donate-amt-row">
-          <button class="donate-amt-btn" data-amt="9">9 บาท</button>
-          <button class="donate-amt-btn active" data-amt="19">19 บาท</button>
-          <button class="donate-amt-btn" data-amt="29">29 บาท</button>
-          <button class="donate-amt-btn" data-amt="59">59 บาท</button>
+        <div id="donate-amt-section">
+          <div class="k-label">เลือกยอดสนับสนุน</div>
+          <div class="donate-amt-row">
+            <button class="donate-amt-btn" data-amt="9">9 บาท</button>
+            <button class="donate-amt-btn active" data-amt="19">19 บาท</button>
+            <button class="donate-amt-btn" data-amt="29">29 บาท</button>
+            <button class="donate-amt-btn" data-amt="59">59 บาท</button>
+          </div>
         </div>
 
         <div class="qr-card" id="donate-qr-wrap"></div>
@@ -329,7 +332,7 @@
             <div class="pp-label" id="donate-pp-name">-</div>
             <div class="pp-id" id="donate-pp-id">-</div>
           </div>
-          <button class="btn-outline-ivory" id="btn-copy-pp">คัดลอกเลข</button>
+          <button class="btn-outline-ivory" id="btn-copy-pp">บันทึกรูป QR</button>
         </div>
 
         <button class="btn-primary-gold" id="btn-confirm-donate" style="width:100%;margin-top:12px;">
@@ -338,7 +341,7 @@
       </div>
     </div>
 
-    <!-- DOWNLOADABLE KEEPSAKE CARD & REAL SHOP COUPON MODAL -->
+    <!-- DOWNLOADABLE KEEPSAKE CARD -->
     <div class="modal-backdrop" id="share-card-modal" style="display:none;">
       <div class="editorial-modal share-box">
         <div class="modal-head">
@@ -351,11 +354,10 @@
           <div class="ks-name" id="sc-name">คุณ ...</div>
           <div class="ks-wish" id="sc-wish">"..."</div>
           <div class="ks-divider"></div>
-          <div class="ks-coupon">
-            <div class="ks-cp-title" id="sc-coupon-title">คูปองส่วนลดหน้าร้าน</div>
-            <div class="ks-cp-offer" id="sc-coupon-offer">-</div>
-            <div class="ks-cp-addr" id="sc-coupon-address">-</div>
-            <div class="ks-cp-code">รหัสอ้างอิง: <b id="sc-coupon-code">-</b></div>
+          <div class="ks-shop-info">
+            <div class="ks-cp-title" id="sc-shop-title">ร้านหอยทอด โตโต้ • สระหลวง หนองไผ่</div>
+            <div class="ks-cp-offer" id="sc-shop-sub">แวะชิมหอยทอดกรอบ ออส่วน ผัดไทยร้อนๆ ได้ที่หน้าร้านจริง</div>
+            <div class="ks-cp-addr" id="sc-shop-address">ซอยสระหลวงใต้ (ซอยเทศบาล 34) หน้าร้านตึกชมพู สระหลวง อ.หนองไผ่</div>
           </div>
         </div>
         <div class="share-actions">

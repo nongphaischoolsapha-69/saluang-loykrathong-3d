@@ -574,7 +574,7 @@
         hb.carryingDish = null;
         hb.state = 'RETURNING';
         sfx.playCash();
-        showCamToast(`เสิร์ฟสำเร็จ! แวะรับคูปองส่วนลดหน้าร้านโตโต้ได้เลย`);
+        showCamToast('เสิร์ฟสำเร็จ! หอยทอดโตโต้กรอบหอมน่าทานมาก 🦪');
       } else if (hb.state === 'TO_CLEAN' && hb.targetTable) {
         while (hb.targetTable.dishAnchor.children.length) hb.targetTable.dishAnchor.remove(hb.targetTable.dishAnchor.children[0]);
         hb.targetTable.status = 'EMPTY';
@@ -763,24 +763,32 @@
     const wrap = document.getElementById('donate-qr-wrap');
     if (!wrap) return;
     const mono = TOTO.MONETIZATION || {};
+    const amtSec = document.getElementById('donate-amt-section');
+    const copyBtn = document.getElementById('btn-copy-pp');
     document.getElementById('donate-pp-name').textContent = mono.promptPayName || 'ร้านหอยทอด โตโต้';
-    document.getElementById('donate-pp-id').textContent = mono.promptPayId || '08X-XXX-XXXX';
 
     document.querySelectorAll('.donate-amt-btn').forEach(b => {
       b.classList.toggle('active', Number(b.dataset.amt) === STATE.donateAmount);
     });
 
     if (mono.customQrImageUrl) {
-      wrap.innerHTML = `<img src="${mono.customQrImageUrl}" alt="PromptPay QR" />`;
+      if (amtSec) amtSec.style.display = 'none';
+      document.getElementById('donate-pp-id').textContent = mono.promptPayMasked || 'สแกน QR ได้จากทุกธนาคาร';
+      if (copyBtn) copyBtn.textContent = 'บันทึกรูป QR';
+      wrap.innerHTML = `<img src="${mono.customQrImageUrl}" alt="Thai QR Payment" />`;
       return;
     }
+
+    if (amtSec) amtSec.style.display = 'block';
+    if (copyBtn) copyBtn.textContent = 'คัดลอกเลข';
+    document.getElementById('donate-pp-id').textContent = mono.promptPayId || '';
 
     const cleanId = String(mono.promptPayId || '').replace(/[^0-9]/g, '');
     if (cleanId.length >= 10 && !String(mono.promptPayId).includes('X')) {
       const qrSrc = `https://promptpay.io/${cleanId}/${STATE.donateAmount}.png`;
       wrap.innerHTML = `<img src="${qrSrc}" alt="PromptPay QR ${STATE.donateAmount}" onerror="this.outerHTML='<div class=\\'qr-placeholder\\'>โอนเข้าเลข PromptPay ด้านล่าง<br/>จำนวน ${STATE.donateAmount} บาท</div>'" />`;
     } else {
-      wrap.innerHTML = `<div class="qr-placeholder">ยังไม่ได้ตั้งค่าเบอร์ PromptPay จริงใน <code>js/config.js</code><br/><b>ยอดสนับสนุนตัวอย่าง: ${STATE.donateAmount} บาท</b></div>`;
+      wrap.innerHTML = `<div class="qr-placeholder">สแกน QR ด้านบนเพื่อร่วมสนับสนุน<br/><b>ยอดแนะนำ: ${STATE.donateAmount} บาท</b></div>`;
     }
   }
 
@@ -852,7 +860,7 @@
 
   function openShareCardModal(meta) {
     clearMovementInputs();
-    trackAnalytics('coupon_open', 'share_card');
+    trackAnalytics('share_card_open', 'share_card');
     const mono = TOTO.MONETIZATION || {};
     const m = meta || {
       name: 'ผู้ร่วมงานลอยกระทง สระหลวง',
@@ -866,10 +874,9 @@
     document.getElementById('sc-krathong-badge').textContent = `${m.baseName || 'กระทงใบตอง'} • ${m.flowerName || 'ดอกบัวชมพู'}${m.isVip ? ' (VIP ทองคำ)' : ''}${m.perfectMoon ? ' • ✨ ลอยตรงแสงจันทร์' : ''}`;
     document.getElementById('sc-name').textContent = m.name;
     document.getElementById('sc-wish').textContent = `"${m.wish}"`;
-    document.getElementById('sc-coupon-title').textContent = mono.shopCouponTitle || 'คูปองส่วนลดหน้าร้าน หอยทอด โตโต้';
-    document.getElementById('sc-coupon-offer').textContent = mono.shopCouponOffer || 'แสดงการ์ดนี้รับส่วนลด 5 บาท';
-    document.getElementById('sc-coupon-address').textContent = mono.shopCouponAddress || 'ซอยสระหลวงใต้ อ.หนองไผ่';
-    document.getElementById('sc-coupon-code').textContent = mono.shopCouponCode || 'SALUANG-69';
+    document.getElementById('sc-shop-title').textContent = mono.shopCardTitle || 'ร้านหอยทอด โตโต้ • สระหลวง หนองไผ่';
+    document.getElementById('sc-shop-sub').textContent = mono.shopCardSubtitle || 'แวะชิมหอยทอดกรอบ ออส่วน ผัดไทยร้อนๆ ได้ที่หน้าร้านจริง';
+    document.getElementById('sc-shop-address').textContent = mono.shopAddress || 'ซอยสระหลวงใต้ (ซอยเทศบาล 34) อ.หนองไผ่';
     document.getElementById('share-card-modal').style.display = 'flex';
   }
 
@@ -960,27 +967,22 @@
       ctx.fillText(ln, 540, 880 + idx * 44);
     });
 
-    // Coupon box at bottom
-    ctx.strokeStyle = '#d4af6a';
-    ctx.setLineDash([10, 8]);
-    ctx.strokeRect(100, 1050, 880, 210);
-    ctx.setLineDash([]);
+    // Clean shop location footer (no discount/coupon)
+    ctx.strokeStyle = 'rgba(212, 175, 106, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(100, 1065, 880, 180);
 
     ctx.fillStyle = '#f6f0e4';
     ctx.font = '600 28px Prompt, sans-serif';
-    ctx.fillText(mono.shopCouponTitle || 'คูปองส่วนลดหน้าร้าน หอยทอด โตโต้', 540, 1104);
+    ctx.fillText(mono.shopCardTitle || 'ร้านหอยทอด โตโต้ • สระหลวง หนองไผ่', 540, 1122);
 
     ctx.fillStyle = '#e8c785';
-    ctx.font = '600 26px Prompt, sans-serif';
-    ctx.fillText(mono.shopCouponOffer || 'แสดงการ์ดนี้รับส่วนลดหน้าร้านทันที', 540, 1152);
+    ctx.font = '500 24px Prompt, sans-serif';
+    ctx.fillText(mono.shopCardSubtitle || 'แวะชิมหอยทอดกรอบ ออส่วน ผัดไทยร้อนๆ ได้ที่หน้าร้านจริง', 540, 1168);
 
     ctx.fillStyle = '#c8c0b4';
     ctx.font = '400 21px Prompt, sans-serif';
-    ctx.fillText(mono.shopCouponAddress || 'ซอยสระหลวงใต้ อ.หนองไผ่ จ.เพชรบูรณ์', 540, 1196);
-
-    ctx.fillStyle = '#d4af6a';
-    ctx.font = '700 24px Prompt, sans-serif';
-    ctx.fillText(`รหัสคูปอง: ${mono.shopCouponCode || 'SALUANG-69'}`, 540, 1236);
+    ctx.fillText(mono.shopAddress || 'ซอยสระหลวงใต้ อ.หนองไผ่ จ.เพชรบูรณ์', 540, 1212);
 
     const link = document.createElement('a');
     link.download = `loy-krathong-saluang-${Date.now()}.png`;
@@ -1720,6 +1722,12 @@
   function updateProjectedLabels() {
     const vp = getViewportSize();
     const w = vp.w, h = vp.h;
+    const isNarrow = w <= 640;
+
+    const emoteEl = document.getElementById('emote-menu');
+    const emoteOpen = !!(emoteEl && emoteEl.style.display !== 'none');
+    document.body.classList.toggle('modal-open', isModalBackdropOpen());
+    document.body.classList.toggle('overlay-open', !!(emoteOpen || STATE.cookPanelOpen));
 
     TABLES.forEach(tbl => {
       const el = tbl.tagEl;
@@ -1740,6 +1748,7 @@
       el.textContent = tbl.status === 'WAITING' && tbl.order ? `โต๊ะ ${tbl.id}: ${tbl.order.short}` : `โต๊ะ ${tbl.id}`;
     });
 
+    const visibleTags = [];
     charRefs.pondKrathongs.forEach(pk => {
       if (!pk.tagEl) return;
       if (STATE.started && !STATE.photoMode && !STATE.avatarModalOpen && !ritual.active && STATE.loyKrathongMode) {
@@ -1748,16 +1757,28 @@
         const sx = (projVec.x * 0.5 + 0.5) * w;
         const sy = (-projVec.y * 0.5 + 0.5) * h;
         const dist = camera.position.distanceTo(pk.mesh.position);
-        if (projVec.z <= 1 && dist < 52 && sx >= -80 && sx <= w + 80 && sy >= 40 && sy <= h - 40) {
-          pk.tagEl.style.left = sx + 'px';
-          pk.tagEl.style.top = sy + 'px';
-          pk.tagEl.style.display = 'block';
+        const maxDist = isNarrow ? 34 : 52;
+        if (projVec.z <= 1 && dist < maxDist && sx >= (isNarrow ? 20 : -80) && sx <= (isNarrow ? w - 20 : w + 80) && sy >= (isNarrow ? 104 : 40) && sy <= (isNarrow ? h - 132 : h - 40)) {
+          visibleTags.push({ pk, sx, sy, dist });
         } else {
           pk.tagEl.style.display = 'none';
         }
       } else {
         pk.tagEl.style.display = 'none';
       }
+    });
+
+    if (isNarrow && visibleTags.length > 5) {
+      visibleTags.sort((a, b) => a.dist - b.dist);
+      visibleTags.slice(5).forEach(item => { item.pk.tagEl.style.display = 'none'; });
+    }
+    const shownTags = isNarrow ? visibleTags.slice(0, 5) : visibleTags;
+    shownTags.forEach(({ pk, sx, sy }) => {
+      const clampedX = isNarrow ? THREE.MathUtils.clamp(sx, 82, w - 82) : sx;
+      const clampedY = isNarrow ? THREE.MathUtils.clamp(sy, 104, h - 132) : sy;
+      pk.tagEl.style.left = clampedX + 'px';
+      pk.tagEl.style.top = clampedY + 'px';
+      pk.tagEl.style.display = 'block';
     });
 
     const stallBar = document.getElementById('toto-stall-bar');
@@ -1943,6 +1964,8 @@
     lastMouseY = e.clientY;
 
     const isMouse = e.pointerType !== 'touch';
+    const yawSens = isMouse ? 0.0055 : 0.0078;
+    const pitchSens = isMouse ? 0.0045 : 0.0058;
     const modalOpen = isModalBackdropOpen();
     const overUI = !!(e.target && e.target.closest && e.target.closest('#cook-panel, .editorial-modal, .dressing-drawer, .emote-menu, .landmark-menu, #toto-stall-bar, #main-dock, .krathong-wish-tag, .sponsor-world-tag, #photo-mode-bar, .icon-tool-btn, .location-pill'));
 
@@ -1952,11 +1975,11 @@
         manualPreviewDrag = true;
         previewYaw += dx * 0.012;
       } else {
-        camYaw -= dx * 0.0055;
+        camYaw -= dx * yawSens;
         if (STATE.camMode === 1) {
-          camPitch = THREE.MathUtils.clamp(camPitch - dy * 0.0045, -0.72, 0.72);
+          camPitch = THREE.MathUtils.clamp(camPitch - dy * pitchSens, -0.72, 0.72);
         } else {
-          camPitch = THREE.MathUtils.clamp(camPitch + dy * 0.0045, -0.35, 0.85);
+          camPitch = THREE.MathUtils.clamp(camPitch + dy * pitchSens, -0.35, 0.85);
         }
       }
     } else if (STATE.camMode === 1 && isMouse && !modalOpen && !overUI) {
@@ -2007,7 +2030,8 @@
     toto.yaw = 0;
     camYaw = 0;
     camPitch = -0.04;
-    setCameraMode(1);
+    const isMobileDevice = isEffectivePortrait() || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    setCameraMode(isMobileDevice ? 3 : 1);
 
     worldRefs.setLoyKrathongFestival(true);
     cycleTimeOfDay(nightMode ? 'NIGHT' : 'DAY');
@@ -2210,7 +2234,6 @@
   document.getElementById('btn-open-donate-from-k').onclick = openDonateModal;
 
   document.getElementById('btn-open-cook').onclick = openCookPanel;
-  document.getElementById('btn-shop-coupon').onclick = () => openShareCardModal(null);
   document.getElementById('btn-close-cook').onclick = closeCookPanel;
   document.getElementById('btn-stir').onclick = stirPan;
   document.getElementById('btn-plate').onclick = plateFromPan;
@@ -2252,7 +2275,19 @@
     };
   });
   document.getElementById('btn-copy-pp').onclick = () => {
-    const ppId = (TOTO.MONETIZATION && TOTO.MONETIZATION.promptPayId) || '';
+    const mono = TOTO.MONETIZATION || {};
+    if (mono.customQrImageUrl) {
+      const link = document.createElement('a');
+      link.href = mono.customQrImageUrl;
+      link.download = 'saluang-support-qr.jpg';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showCamToast('บันทึกรูป QR แล้ว เปิดสแกนในแอปธนาคารได้เลย');
+      sfx.playPop();
+      return;
+    }
+    const ppId = mono.promptPayId || '';
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ppId).catch(() => {});
     showCamToast(`คัดลอกเลข PromptPay: ${ppId} แล้ว`);
     sfx.playPop();
@@ -2281,11 +2316,10 @@
   document.getElementById('btn-close-share').onclick = closeShareCardModal;
   document.getElementById('btn-download-card').onclick = downloadKeepsakeCardPNG;
   document.getElementById('btn-share-copy').onclick = () => {
-    const mono = TOTO.MONETIZATION || {};
     const m = lastShareMeta || { name: 'ชาวหนองไผ่', wish: 'สุขสันต์วันลอยกระทง สระหลวง หนองไผ่' };
-    const msg = `ลอยกระทงออนไลน์ ณ สระหลวง อ.หนองไผ่\nโดย: ${m.name}\n"${m.wish}"\nคูปองหน้าร้านหอยทอด โตโต้: ${mono.shopCouponCode || 'SALUANG-69'}\n${window.location.href}`;
+    const msg = `ลอยกระทงออนไลน์ ณ สระหลวง อ.หนองไผ่\nโดย: ${m.name}\n"${m.wish}"\n${window.location.href}`;
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).catch(() => {});
-    showCamToast('คัดลอกคำอวยพรและรหัสคูปองแล้ว');
+    showCamToast('คัดลอกคำอวยพรและลิงก์แล้ว');
     sfx.playPop();
   };
 

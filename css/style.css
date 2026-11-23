@@ -889,6 +889,12 @@ html, body {
   color: var(--gold-bright);
 }
 
+.mobile-only-lbl { display: none; }
+.m-short { display: none; }
+.d-full { display: inline; }
+.hide-xs { display: inline; }
+.kbd-hint { display: inline; }
+
 .qr-card {
   background: #ffffff;
   color: #111827;
@@ -902,8 +908,12 @@ html, body {
   justify-content: center;
 }
 .qr-card img {
-  max-width: 180px;
-  max-height: 180px;
+  max-width: 240px;
+  max-height: 300px;
+  width: auto;
+  height: auto;
+  border-radius: 8px;
+  display: block;
 }
 .qr-placeholder {
   font-size: 12.5px;
@@ -922,7 +932,7 @@ html, body {
   padding: 9px 12px;
 }
 .pp-label { font-size: 11px; color: var(--ivory-muted); }
-.pp-id { font-size: 14px; font-weight: 600; color: var(--gold-bright); }
+.pp-id { font-size: 13.5px; font-weight: 600; color: var(--gold-bright); }
 
 /* Keepsake Frame */
 .keepsake-frame {
@@ -964,16 +974,15 @@ html, body {
   background: var(--border-thin);
   margin: 14px auto;
 }
-.ks-coupon {
-  background: rgba(246, 240, 228, 0.05);
-  border: 1px dashed var(--gold);
+.ks-shop-info {
+  background: rgba(246, 240, 228, 0.04);
+  border: 1px solid rgba(212, 175, 106, 0.35);
   border-radius: 10px;
   padding: 12px;
 }
 .ks-cp-title { font-size: 13px; font-weight: 600; color: var(--ivory); }
-.ks-cp-offer { font-size: 12.5px; color: var(--gold-bright); margin: 4px 0; }
+.ks-cp-offer { font-size: 12px; color: var(--gold-bright); margin: 4px 0; }
 .ks-cp-addr { font-size: 11px; color: var(--ivory-muted); }
-.ks-cp-code { font-size: 12px; color: var(--ivory); margin-top: 6px; }
 
 .share-actions {
   display: flex;
@@ -1004,6 +1013,13 @@ html, body {
   }
 }
 
+body.dressing-open #joystick-zone,
+body.modal-open #joystick-zone,
+body.ritual-active #joystick-zone,
+body.overlay-open #joystick-zone {
+  display: none !important;
+}
+
 .joy-ring {
   position: relative;
   width: 100%;
@@ -1027,11 +1043,115 @@ html, body {
   #controls-hint { display: none; }
 }
 
-@media (max-width: 640px) {
-  .hud-top { left: 10px; right: 10px; top: 10px; }
-  .location-pill { padding: 6px 11px; font-size: 11.5px; }
+@media (pointer: coarse), (max-width: 768px) {
+  .kbd-hint { display: none; }
+}
+
+@media (max-width: 768px) {
+  .hud-top {
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: 10px;
+    right: 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .location-pill {
+    width: 100%;
+    justify-content: space-between;
+    padding: 6px 12px;
+    font-size: 11.5px;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .top-tools-wrap {
+    display: grid;
+    grid-template-columns: 1.25fr repeat(5, 1fr);
+    gap: 5px;
+    width: 100%;
+  }
+  .top-tools-wrap .icon-tool-btn {
+    width: 100%;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    padding: 5px 2px;
+    min-height: 38px;
+    border-radius: 12px;
+    font-size: 10px;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .mobile-only-lbl { display: inline; }
+  .landmark-dropdown-wrap { width: 100%; }
+  .landmark-menu {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 94px);
+    left: 12px;
+    right: 12px;
+    min-width: 0;
+    max-width: none;
+  }
+  #cam-toast {
+    top: calc(env(safe-area-inset-top, 0px) + 94px);
+    max-width: 92vw;
+    white-space: normal;
+    text-align: center;
+  }
+  #main-dock {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    left: 10px;
+    right: 10px;
+    transform: none;
+    width: auto;
+    max-width: none;
+    gap: 6px;
+  }
+  .dock-main-cta {
+    width: min(100%, 340px);
+    padding: 10px 18px;
+    font-size: 14px;
+  }
+  .dock-sub-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+    width: 100%;
+  }
+  .dock-sub-btn {
+    width: 100%;
+    padding: 8px 4px;
+    font-size: 11px;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 36px;
+  }
+  .d-full { display: none; }
+  .m-short { display: inline; }
+  #joystick-zone {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 114px);
+    left: 14px;
+    width: 96px;
+    height: 96px;
+  }
+  .krathong-wish-tag {
+    font-size: 10.5px;
+    padding: 2px 8px;
+    max-width: 165px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .k-input-row { grid-template-columns: 1fr; }
   .recipe-grid { grid-template-columns: repeat(2, 1fr); }
+  body.dressing-open .location-pill { display: none !important; }
+}
+
+@media (max-width: 480px) {
+  .hide-xs { display: none; }
 }
 
 /* ============================================================
@@ -1486,11 +1606,29 @@ body.dressing-open #toto-stall-bar {
 .search-k-item .sk-name { font-size: 13px; font-weight: 600; color: var(--gold-bright); }
 .search-k-item .sk-wish { font-size: 12px; color: var(--ivory-muted); margin-top: 2px; }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+  .dressing-drawer {
+    max-height: 54vh;
+    padding: 14px 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+  }
   #toto-stall-bar,
   #cook-panel,
   .emote-menu {
-    bottom: 158px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
+    width: calc(100vw - 20px);
+    max-width: 420px;
+  }
+  .letterbox-bar.top {
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 10px;
+    min-height: 54px;
+  }
+  .rs-dot {
+    font-size: 10.5px;
+    padding: 3px 8px;
+  }
+  .letterbox-bar.bottom {
+    padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 16px);
+    min-height: 132px;
   }
 }
 

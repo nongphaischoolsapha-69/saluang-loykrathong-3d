@@ -5,6 +5,14 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const zlib = require('zlib');
+const crypto = require('crypto');
+
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+};
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = '0.0.0.0';
@@ -223,18 +231,43 @@ function readJsonBody(req, maxBytes = 4096) {
   });
 }
 
-function sendJson(res, status, obj) {
-  res.writeHead(status, {
+function sendJson(res, status, obj, allowCors = true) {
+  const headers = {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'Access-Control-Allow-Origin': '*'
-  });
+    ...SECURITY_HEADERS
+  };
+  if (allowCors) headers['Access-Control-Allow-Origin'] = '*';
+  res.writeHead(status, headers);
   res.end(JSON.stringify(obj));
 }
 
 function isAuthorizedAdmin(req) {
   const hdr = String(req.headers['x-admin-key'] || '').trim();
-  return Boolean(ADMIN_KEY) && hdr === ADMIN_KEY;
+  if (!ADMIN_KEY || !hdr) return false;
+  const a = crypto.createHash('sha256').update(hdr).digest();
+  const b = crypto.createHash('sha256').update(ADMIN_KEY).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+function guardAdminAuth(req, res) {
+  if (!checkRateLimit(req, 'admin_req', 60, 60000)) {
+    sendJson(res, 429, { ok: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' }, false);
+    return false;
+  }
+  const failBucket = rateBuckets.get(`${getClientIp(req)}|admin_auth_fail`);
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  const recentFails = failBucket ? failBucket.filter(t => t >= cutoff).length : 0;
+  if (recentFails >= 10) {
+    sendJson(res, 429, { ok: false, error: 'ลองผิดเกินจำนวนที่กำหนด กรุณารอ 15 นาที' }, false);
+    return false;
+  }
+  if (!isAuthorizedAdmin(req)) {
+    checkRateLimit(req, 'admin_auth_fail', 20, 15 * 60 * 1000);
+    sendJson(res, 401, { ok: false, error: 'Unauthorized' }, false);
+    return false;
+  }
+  return true;
 }
 
 // --- Real-Time Online Multiplayer Store & SSE Broadcaster ---
@@ -353,11 +386,14 @@ const server = http.createServer(async (req, res) => {
   const urlPath = (req.url || '/').split('?')[0];
 
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
+    const isAdminOpt = urlPath.startsWith('/api/admin');
+    const optHeaders = {
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, x-admin-key'
-    });
+      'Access-Control-Allow-Headers': 'Content-Type, x-admin-key',
+      ...SECURITY_HEADERS
+    };
+    if (!isAdminOpt) optHeaders['Access-Control-Allow-Origin'] = '*';
+    res.writeHead(204, optHeaders);
     return res.end();
   }
 
@@ -383,7 +419,8 @@ const server = http.createServer(async (req, res) => {
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
-      'Access-Control-Allow-Origin': '*'
+      'Access-Control-Allow-Origin': '*',
+      ...SECURITY_HEADERS
     });
 
     const players = getPlayersSnapshot();
@@ -539,7 +576,7 @@ const server = http.createServer(async (req, res) => {
         statsCache.sponsorClicks[slotId] = (statsCache.sponsorClicks[slotId] || 0) + 1;
       } else if (ev === 'contact_open') {
         statsCache.contactOpens++;
-      } else if (ev === 'coupon_open') {
+      } else if (ev === 'share_card_open' || ev === 'coupon_open') {
         statsCache.couponOpens++;
       } else {
         return sendJson(res, 400, { ok: false, error: 'Unknown track event' });
@@ -662,11 +699,9 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Secret Admin Console Endpoints
+  // Secret Admin Console Endpoints (CORS disabled + Brute-force guarded)
   if (urlPath === '/api/admin/overview' && req.method === 'GET') {
-    if (!isAuthorizedAdmin(req)) {
-      return sendJson(res, 401, { ok: false, error: 'Unauthorized' });
-    }
+    if (!guardAdminAuth(req, res)) return;
     const list = readKrathongs();
     return sendJson(res, 200, {
       ok: true,
@@ -674,75 +709,88 @@ const server = http.createServer(async (req, res) => {
       onlineCount: activePlayers.size,
       players: getPlayersSnapshot(),
       krathongs: list
-    });
+    }, false);
   }
 
   if (urlPath === '/api/admin/krathongs/delete' && req.method === 'POST') {
-    if (!isAuthorizedAdmin(req)) {
-      return sendJson(res, 401, { ok: false, error: 'Unauthorized' });
-    }
+    if (!guardAdminAuth(req, res)) return;
     try {
       const data = await readJsonBody(req, 1024);
       const targetId = String(data.id || '').trim();
-      if (!targetId) return sendJson(res, 400, { ok: false, error: 'Missing id' });
+      if (!targetId) return sendJson(res, 400, { ok: false, error: 'Missing id' }, false);
       const list = readKrathongs();
       const filtered = list.filter(k => k.id !== targetId);
       if (filtered.length === list.length) {
-        return sendJson(res, 404, { ok: false, error: 'Krathong not found' });
+        return sendJson(res, 404, { ok: false, error: 'Krathong not found' }, false);
       }
       writeKrathongs(filtered);
       broadcastSSE('krathong_delete', { id: targetId });
-      return sendJson(res, 200, { ok: true, id: targetId });
+      return sendJson(res, 200, { ok: true, id: targetId }, false);
     } catch (err) {
-      return sendJson(res, 400, { ok: false, error: err.message });
+      return sendJson(res, 400, { ok: false, error: err.message }, false);
     }
   }
 
   if (urlPath === '/api/admin/kick' && req.method === 'POST') {
-    if (!isAuthorizedAdmin(req)) {
-      return sendJson(res, 401, { ok: false, error: 'Unauthorized' });
-    }
+    if (!guardAdminAuth(req, res)) return;
     try {
       const data = await readJsonBody(req, 1024);
       const targetId = sanitizeId(data.id);
       if (targetId && activePlayers.delete(targetId)) {
         schedulePlayersBroadcast(true);
       }
-      return sendJson(res, 200, { ok: true, id: targetId });
+      return sendJson(res, 200, { ok: true, id: targetId }, false);
     } catch (err) {
-      return sendJson(res, 400, { ok: false, error: err.message });
+      return sendJson(res, 400, { ok: false, error: err.message }, false);
     }
   }
 
-  // Static File Serving
+  // Static File Serving (Strict Allowlist Only)
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS });
+    return res.end('Method Not Allowed');
+  }
   let rel = '';
   try {
     rel = decodeURIComponent(urlPath === '/' ? '/index.html' : urlPath).replace(/^\/+/, '');
   } catch (err) {
-    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS });
     return res.end('Bad Request');
   }
+  const relNorm = rel.replace(/\\/g, '/');
+  const ext = path.extname(relNorm).toLowerCase();
+  const hasHiddenOrTraversal = !relNorm || relNorm.split('/').some(seg => !seg || seg === '.' || seg === '..' || seg.startsWith('.'));
+  const isAllowedStatic = !hasHiddenOrTraversal && (
+    relNorm === 'index.html' ||
+    relNorm === 'admin.html' ||
+    (relNorm.startsWith('css/') && ext === '.css') ||
+    (relNorm.startsWith('js/') && ext === '.js') ||
+    (relNorm.startsWith('assets/') && (ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.svg'))
+  );
+  if (!isAllowedStatic) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS });
+    return res.end('Not Found');
+  }
+
   const rootResolved = path.resolve(ROOT);
-  const filePath = path.resolve(rootResolved, rel);
+  const filePath = path.resolve(rootResolved, relNorm);
   if (filePath !== rootResolved && !filePath.startsWith(rootResolved + path.sep)) {
-    res.writeHead(403);
+    res.writeHead(403, SECURITY_HEADERS);
     return res.end('Forbidden');
   }
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS });
       return res.end('Not Found');
     }
 
-    const ext = path.extname(filePath).toLowerCase();
     let out = content;
-    if (rel === 'index.html') {
+    if (relNorm === 'index.html') {
       const origin = getRequestOrigin(req);
       out = Buffer.from(content.toString('utf8').replace(/__SITE_ORIGIN__/g, origin), 'utf8');
     }
 
-    const relNorm = rel.replace(/\\/g, '/');
     const isAsset = relNorm.startsWith('assets/');
     let cacheControl = 'no-store';
     if (ext === '.html') {
@@ -755,7 +803,8 @@ const server = http.createServer(async (req, res) => {
 
     const headers = {
       'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
-      'Cache-Control': cacheControl
+      'Cache-Control': cacheControl,
+      ...SECURITY_HEADERS
     };
 
     const compressible = ext === '.html' || ext === '.css' || ext === '.js' || ext === '.json' || ext === '.svg';
@@ -799,6 +848,9 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(PORT, HOST, () => {
+  if (IS_PROD && ADMIN_KEY === 'saluang2569') {
+    console.warn('SECURITY WARNING: Using default ADMIN_KEY in production! Please set ADMIN_KEY env var.');
+  }
   const nets = os.networkInterfaces();
   const lanIps = [];
   for (const name of Object.keys(nets)) {
