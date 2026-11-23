@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: saluang-loykrathong-3d
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: node --check server.js
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MAX_SSE_CLIENTS
+        value: "200"
+      - key: ADMIN_KEY
+        sync: false

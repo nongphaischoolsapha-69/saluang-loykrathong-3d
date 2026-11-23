@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ลอยกระทง สระหลวง หนองไผ่ • 3D</title>
+  <meta name="description" content="แต่งตัว 3D ออนไลน์ เดินชมสวนสาธารณะสระหลวง อ.หนองไผ่ จ.เพชรบูรณ์ ลอยกระทง อวยพร จุดพลุ และแวะร้านหอยทอดโตโต้">
+  <meta name="theme-color" content="#070e1c">
+  <meta property="og:title" content="ลอยกระทงออนไลน์ สระหลวง หนองไผ่ • 3D">
+  <meta property="og:description" content="แต่งชุดไทย/แฟนตาซี 3D เดินเล่นริมสระหลวง ลอยกระทงเขียนคำอธิษฐานพร้อมเพื่อนแบบเรียลไทม์">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="__SITE_ORIGIN__/">
+  <meta property="og:image" content="__SITE_ORIGIN__/assets/cover.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1024">
+  <meta property="og:image:height" content="576">
+  <meta property="og:site_name" content="ลอยกระทง สระหลวง หนองไผ่">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ลอยกระทงออนไลน์ สระหลวง หนองไผ่ • 3D">
+  <meta name="twitter:description" content="แต่งชุดไทย/แฟนตาซี 3D เดินเล่นริมสระหลวง ลอยกระทงเขียนคำอธิษฐานพร้อมเพื่อนแบบเรียลไทม์">
+  <meta name="twitter:image" content="__SITE_ORIGIN__/assets/cover.jpg">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230a1428'/%3E%3Cellipse cx='32' cy='44' rx='22' ry='9' fill='%23166534' stroke='%23d4af6a' stroke-width='2'/%3E%3Cpath d='M20 40 Q32 14 44 40 Z' fill='%23f472b6'/%3E%3Ccircle cx='32' cy='18' r='4' fill='%23facc15'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="game-viewport">
+    <div id="canvas-container"></div>
+    <div id="world-labels"></div>
+    <div id="cam-toast"></div>
+
+    <!-- CINEMATIC START SCREEN -->
+    <div id="start-screen">
+      <div class="start-backdrop" aria-hidden="true"></div>
+      <div class="start-vignette"></div>
+      <div class="start-content">
+        <div class="start-cover-frame">
+          <img src="assets/cover.jpg" alt="ลอยกระทง สระหลวง อำเภอหนองไผ่ ออนไลน์" class="start-cover-img">
+        </div>
+        <p class="start-kicker">สวนสาธารณะสระหลวง • อ.หนองไผ่ จ.เพชรบูรณ์</p>
+        <h1 class="start-title">ลอยกระทง สระหลวง 3D ออนไลน์</h1>
+        <p class="start-sub">
+          ประดิษฐ์กระทง เขียนคำอธิษฐาน ปล่อยลงสระหลวงจำลองมาตราส่วนจริงแบบเรียลไทม์
+          พร้อมแวะร้านหอยทอด โตโต้ ณ ซอยสระหลวงใต้
+        </p>
+        <div class="start-actions">
+          <button class="btn-primary-gold" id="btn-start-loy">เข้าสู่งานลอยกระทง</button>
+          <button class="btn-outline-ivory" id="btn-open-avatar-start">แต่งตัว Avatar 3D</button>
+          <button class="btn-text-subtle" id="btn-start">ชมบรรยากาศกลางวัน</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MINIMALIST EDITORIAL HUD -->
+    <div id="hud">
+      <div class="hud-top">
+        <div class="location-pill">
+          <span class="loc-name">สระหลวง • หนองไผ่</span>
+          <span class="loc-divider"></span>
+          <button type="button" class="loc-search-btn" id="btn-search-krathong" title="ค้นหากระทงในสระหลวง">
+            🪷 ลอยแล้ว <b id="ui-pond-count">3</b> 🔍
+          </button>
+          <span class="loc-divider"></span>
+          <span class="loc-online"><span class="online-dot"></span>ออนไลน์ <b id="ui-online-count">1</b></span>
+        </div>
+
+        <div class="top-tools-wrap">
+          <button class="icon-tool-btn tool-btn-gold" id="btn-customize-avatar" title="แต่งตัว Avatar 3D ออนไลน์">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>แต่งตัว 3D</span>
+          </button>
+
+          <div class="landmark-dropdown-wrap">
+            <button class="icon-tool-btn" id="btn-landmarks" title="ไปยังจุดสำคัญรอบสระ">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span>จุดชมวิว</span>
+            </button>
+            <div id="landmark-menu" class="landmark-menu" style="display:none;"></div>
+          </div>
+
+          <button class="icon-tool-btn" id="btn-cam-mode" title="สลับมุมมอง เดินชม (1) / มุมกว้าง (3)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span id="btn-cam-label">สายตา</span>
+          </button>
+
+          <button class="icon-tool-btn" id="btn-time" title="กลางคืน / กลางวัน (T)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <span id="btn-time-label">กลางคืน</span>
+          </button>
+
+          <button class="icon-tool-btn" id="btn-photo-mode" title="โหมดถ่ายรูป">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </button>
+
+          <button class="icon-tool-btn" id="btn-mute" title="เปิด / ปิดเสียง">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- CONTEXTUAL STALL BAR (VISIBLE ONLY WHEN NEAR TOTO'S STALL) -->
+      <div id="toto-stall-bar" style="display:none;">
+        <div class="stall-bar-title">ร้านหอยทอด โตโต้ • ซอยสระหลวงใต้</div>
+        <div class="stall-bar-actions">
+          <button class="btn-outline-gold" id="btn-open-cook">ลองผัดหอยทอด 1 กระทะ</button>
+          <button class="btn-outline-ivory" id="btn-shop-coupon">รับคูปองหน้าร้าน</button>
+        </div>
+      </div>
+
+      <!-- OPTIONAL STALL COOKING OVERLAY (HIDDEN UNTIL VISITOR OPENS AT TOTO'S STALL) -->
+      <div id="order-strip" style="display:none;"></div>
+      <div id="carry-badge" style="display:none;">
+        <div class="cb-title">ถือจานพร้อมเสิร์ฟ</div>
+        <div class="cb-dish" id="cb-dish-name">-</div>
+        <div class="cb-qual" id="cb-dish-qual">-</div>
+        <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px;">
+          <button class="btn-outline-gold" id="btn-auto-serve-badge">ให้น้องเสิร์ฟ</button>
+          <button class="btn-text-subtle" id="btn-discard">ทิ้งจาน</button>
+        </div>
+      </div>
+
+      <div id="cook-panel" style="display:none;">
+        <div id="recipe-select-box">
+          <div class="cook-head">
+            <span>กระทะหอยทอด โตโต้ — เลือกเมนูเพื่อผัด</span>
+            <button class="btn-text-subtle" id="btn-close-cook">ปิด</button>
+          </div>
+          <div class="recipe-grid" id="recipe-grid"></div>
+        </div>
+        <div id="frying-bar-box" style="display:none;">
+          <div class="fry-header">
+            <span id="fry-title">หอยทอดกรอบ</span>
+            <span id="fry-status">กดพลิกกระทะ</span>
+          </div>
+          <div class="fry-meter">
+            <div class="fry-zone-perfect" id="fry-perfect-zone"></div>
+            <div class="fry-zone-burn"></div>
+            <div class="fry-fill" id="fry-fill"></div>
+          </div>
+          <div class="fry-controls">
+            <button class="btn-primary-gold" id="btn-stir">ผัดพลิกกระทะ (Space)</button>
+            <button class="btn-outline-ivory" id="btn-plate">ตักใส่จานเสิร์ฟ (E)</button>
+            <button class="btn-text-subtle" id="btn-clear-pan">ล้างกระทะ</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM-CENTER EDITORIAL FLOATING DOCK -->
+      <div id="emote-menu" class="emote-menu" style="display:none;">
+        <div class="emote-action-grid">
+          <button class="btn-outline-gold emote-pose-btn" data-emote="wai">🙏 ไหว้สวัสดี</button>
+          <button class="btn-outline-ivory emote-pose-btn" data-emote="wave">👋 โบกมือทัก</button>
+          <button class="btn-outline-gold emote-pose-btn" data-emote="ramwong">💃 รำวงวันเพ็ญ</button>
+          <button class="btn-outline-ivory emote-pose-btn" data-emote="jump">🎉 กระโดดดีใจ</button>
+        </div>
+        <div class="emote-quick-list" id="emote-quick-list"></div>
+        <div class="emote-chat-row">
+          <input type="text" id="emote-chat-input" class="k-input" maxlength="50" placeholder="พิมพ์ข้อความสั้นๆ เหนือหัว...">
+          <button class="btn-primary-gold" id="btn-send-chat">ส่ง</button>
+        </div>
+      </div>
+
+      <div id="main-dock">
+        <button class="btn-primary-gold dock-main-cta" id="btn-open-krathong">ประดิษฐ์และลอยกระทง</button>
+        <div class="dock-sub-row">
+          <button class="dock-sub-btn" id="btn-emotes">ทักทาย / แสดงท่า</button>
+          <button class="dock-sub-btn" id="btn-firework">จุดพลุ / ปล่อยโคม</button>
+          <button class="dock-sub-btn" id="btn-visit-toto">แวะร้านหอยทอด โตโต้</button>
+          <button class="dock-sub-btn" id="btn-donate-top">สนับสนุน / VIP</button>
+        </div>
+      </div>
+
+      <div id="controls-hint">
+        เดิน: <b>WASD</b> หรือลูกศร • หันมองรอบสระ: <b>ขยับเมาส์</b> • คลิกชื่อกระทงในสระเพื่ออ่านคำอธิษฐาน
+      </div>
+
+      <!-- TOUCH-ONLY JOYSTICK -->
+      <div id="joystick-zone">
+        <div class="joy-ring"><div class="joy-knob" id="joystick-knob"></div></div>
+      </div>
+    </div>
+
+    <!-- PHOTO MODE & SELFIE OVERLAY -->
+    <div id="photo-mode-bar" style="display:none;">
+      <div id="photo-selfie-poses" class="photo-selfie-poses" style="display:none;">
+        <button type="button" class="selfie-pose-btn" data-emote="wai">🙏 ไหว้</button>
+        <button type="button" class="selfie-pose-btn" data-emote="wave">👋 โบกมือ</button>
+        <button type="button" class="selfie-pose-btn" data-emote="ramwong">💃 รำวง</button>
+        <button type="button" class="selfie-pose-btn" data-emote="jump">🎉 กระโดด</button>
+      </div>
+      <div class="photo-bar-btns">
+        <button class="btn-outline-gold" id="btn-photo-selfie">🤳 กล้องเซลฟี่</button>
+        <button class="btn-primary-gold" id="btn-photo-capture">บันทึกรูป PNG</button>
+        <button class="btn-outline-ivory" id="btn-exit-photo">กลับ</button>
+      </div>
+    </div>
+
+    <!-- CINEMATIC LOY KRATHONG CUTSCENE & 3-STEP MINI-GAME OVERLAY -->
+    <div id="ritual-overlay" style="display:none;">
+      <div class="letterbox-bar top">
+        <div class="ritual-step-dots" id="ritual-step-dots">
+          <span class="rs-dot active" data-step="LIGHT">1. จุดเทียน</span>
+          <span class="rs-dot" data-step="WISH">2. อธิษฐาน</span>
+          <span class="rs-dot" data-step="PUSH">3. กวักน้ำส่ง</span>
+        </div>
+        <button type="button" class="btn-text-subtle ritual-skip-btn" id="btn-skip-ritual">ข้าม ⏭</button>
+      </div>
+
+      <div id="ritual-wish-subtitle"></div>
+
+      <div class="letterbox-bar bottom">
+        <div id="ritual-action-box">
+          <div class="ritual-title" id="ritual-title">ขั้นตอนที่ 1 • จุดไฟมงคล</div>
+          <div class="ritual-desc" id="ritual-desc">แตะเพื่อจุดเทียนและธูป 3 ดอกบนกระทงของคุณ</div>
+
+          <div id="ritual-step-light">
+            <button type="button" class="btn-primary-gold ritual-big-btn" id="btn-ritual-light">🔥 แตะจุดเทียน &amp; ธูปขอพร</button>
+          </div>
+
+          <div id="ritual-step-wish" style="display:none;">
+            <div class="ritual-wish-bar"><div class="ritual-wish-fill" id="ritual-wish-fill"></div></div>
+            <button type="button" class="btn-primary-gold ritual-big-btn" id="btn-ritual-wish">🙏 กดค้างตั้งจิตอธิษฐาน</button>
+          </div>
+
+          <div id="ritual-step-push" style="display:none;">
+            <div class="ritual-timing-track">
+              <div class="ritual-sweet-zone"></div>
+              <div class="ritual-cursor" id="ritual-cursor"></div>
+            </div>
+            <button type="button" class="btn-primary-gold ritual-big-btn" id="btn-ritual-push">🌊 กวักน้ำส่งกระทง! (Space)</button>
+          </div>
+
+          <div id="ritual-result-banner" class="ritual-result-banner" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KRATHONG WISH & BLESSING POPOVER -->
+    <div class="modal-backdrop" id="wish-popover" style="display:none;">
+      <div class="editorial-modal wish-pop-box">
+        <div class="modal-head">
+          <span class="wish-crest" id="wp-badge">คำอธิษฐานริมสระหลวง</span>
+          <button class="modal-close-btn" id="btn-close-wish">✕</button>
+        </div>
+        <h3 class="wp-sender" id="wp-name">-</h3>
+        <p class="wp-text" id="wp-wish">"..."</p>
+        <div class="wp-footer">
+          <button class="btn-primary-gold" id="btn-bless-krathong">
+            ร่วมอวยพร / สาธุ (<span id="wp-bless-count">0</span>)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CUSTOM KRATHONG WORKSHOP MODAL -->
+    <div class="modal-backdrop" id="krathong-modal" style="display:none;">
+      <div class="editorial-modal workshop-box">
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow">ท่าน้ำสระหลวง • หนองไผ่</p>
+            <h2>ประดิษฐ์และลอยกระทง</h2>
+          </div>
+          <button class="modal-close-btn" id="btn-close-krathong">✕</button>
+        </div>
+
+        <div class="k-input-row">
+          <div>
+            <label class="k-label" for="k-input-name">ชื่อผู้ลอย (แสดงบนผิวน้ำสระหลวง)</label>
+            <input type="text" id="k-input-name" class="k-input" maxlength="24" placeholder="เช่น คุณนาย / ชาวหนองไผ่">
+          </div>
+          <div>
+            <label class="k-label" for="k-input-wish">คำอธิษฐาน</label>
+            <input type="text" id="k-input-wish" class="k-input" maxlength="70" placeholder="เขียนคำอธิษฐานของคุณที่นี่...">
+          </div>
+        </div>
+
+        <div class="wish-presets-row">
+          <button type="button" class="wish-chip" data-wish="ขอให้การงานก้าวหน้า ค้าขายร่ำรวย เงินทองไหลมาเทมา">ค้าขายร่ำรวย</button>
+          <button type="button" class="wish-chip" data-wish="ขอให้ครอบครัวร่มเย็นเป็นสุข สุขภาพแข็งแรงตลอดปี">สุขภาพแข็งแรง</button>
+          <button type="button" class="wish-chip" data-wish="ขอให้สมหวังดังปรารถนา เจอแต่กัลยาณมิตรที่ดี">สมหวังดังใจ</button>
+          <button type="button" class="wish-chip" data-wish="ร่วมอนุรักษ์ประเพณีลอยกระทง ณ สระหลวง หนองไผ่">รักษ์สระหลวง</button>
+        </div>
+
+        <div class="k-section-head">
+          <span>1. เลือกฐานกระทง</span>
+          <button type="button" class="btn-link-gold" id="btn-open-donate-from-k">ปลดล็อกกระทงทองคำ VIP</button>
+        </div>
+        <div class="choice-grid" id="krathong-base-grid"></div>
+
+        <div class="k-section-head" style="margin-top:12px;">
+          <span>2. เลือกดอกไม้ประดับ</span>
+        </div>
+        <div class="choice-grid" id="krathong-flower-grid"></div>
+
+        <div class="workshop-footer">
+          <span class="pond-total-note">กระทงในสระขณะนี้ <b id="k-stat-pond-total">3</b> กระทง</span>
+          <button class="btn-primary-gold" id="btn-launch-krathong">วางกระทงลงสระหลวง</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROMPTPAY DONATE & VIP MODAL -->
+    <div class="modal-backdrop" id="donate-modal" style="display:none;">
+      <div class="editorial-modal donate-box">
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow">สนับสนุนผู้พัฒนา & ร้านหอยทอด โตโต้</p>
+            <h2>ปลดล็อกกระทงทองคำ VIP</h2>
+          </div>
+          <button class="modal-close-btn" id="btn-close-donate">✕</button>
+        </div>
+        <p class="modal-desc">
+          ร่วมสมทบทุนดูแลเซิร์ฟเวอร์งานลอยกระทงสระหลวง เพื่อปลดล็อกกระทงทองคำป้ายกรอบทอง พร้อมพลุเฉลิมฉลองเหนือกลางน้ำพุ
+        </p>
+
+        <div class="k-label">เลือกยอดสนับสนุน</div>
+        <div class="donate-amt-row">
+          <button class="donate-amt-btn" data-amt="9">9 บาท</button>
+          <button class="donate-amt-btn active" data-amt="19">19 บาท</button>
+          <button class="donate-amt-btn" data-amt="29">29 บาท</button>
+          <button class="donate-amt-btn" data-amt="59">59 บาท</button>
+        </div>
+
+        <div class="qr-card" id="donate-qr-wrap"></div>
+
+        <div class="pp-info-row">
+          <div>
+            <div class="pp-label" id="donate-pp-name">-</div>
+            <div class="pp-id" id="donate-pp-id">-</div>
+          </div>
+          <button class="btn-outline-ivory" id="btn-copy-pp">คัดลอกเลข</button>
+        </div>
+
+        <button class="btn-primary-gold" id="btn-confirm-donate" style="width:100%;margin-top:12px;">
+          โอนแล้ว • ปลดล็อกกระทงทองคำ VIP
+        </button>
+      </div>
+    </div>
+
+    <!-- DOWNLOADABLE KEEPSAKE CARD & REAL SHOP COUPON MODAL -->
+    <div class="modal-backdrop" id="share-card-modal" style="display:none;">
+      <div class="editorial-modal share-box">
+        <div class="modal-head">
+          <span class="modal-eyebrow">ที่ระลึกลอยกระทง สระหลวง หนองไผ่</span>
+          <button class="modal-close-btn" id="btn-close-share">✕</button>
+        </div>
+        <div class="keepsake-frame">
+          <div class="ks-top">คืนเพ็ญเดือนสิบสอง • สระหลวง อ.หนองไผ่</div>
+          <div class="ks-badge" id="sc-krathong-badge">กระทงใบตอง • ดอกบัวชมพู</div>
+          <div class="ks-name" id="sc-name">คุณ ...</div>
+          <div class="ks-wish" id="sc-wish">"..."</div>
+          <div class="ks-divider"></div>
+          <div class="ks-coupon">
+            <div class="ks-cp-title" id="sc-coupon-title">คูปองส่วนลดหน้าร้าน</div>
+            <div class="ks-cp-offer" id="sc-coupon-offer">-</div>
+            <div class="ks-cp-addr" id="sc-coupon-address">-</div>
+            <div class="ks-cp-code">รหัสอ้างอิง: <b id="sc-coupon-code">-</b></div>
+          </div>
+        </div>
+        <div class="share-actions">
+          <button class="btn-primary-gold" id="btn-download-card">บันทึกรูปการ์ด PNG</button>
+          <button class="btn-outline-ivory" id="btn-share-copy">คัดลอกข้อความ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT-DOCKED LIVE 3D AVATAR DRESSING ROOM V2 -->
+    <div id="avatar-modal" class="dressing-backdrop" style="display:none;">
+      <div class="editorial-modal dressing-drawer">
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow">ห้องแต่งตัวออนไลน์ • สระหลวง 3D</p>
+            <h2>แต่งตัวเข้างานลอยกระทง</h2>
+          </div>
+          <button class="modal-close-btn" id="btn-close-avatar">✕</button>
+        </div>
+
+        <div class="av-name-bar">
+          <div style="flex:1;">
+            <label class="k-label" for="av-input-name">ชื่อแสดงบนหัวตัวละคร (ออนไลน์)</label>
+            <input type="text" id="av-input-name" class="k-input" maxlength="20" placeholder="เช่น คุณแพร / นักท่องเที่ยว">
+          </div>
+          <button type="button" class="btn-outline-gold av-random-btn" id="btn-random-avatar" title="สุ่มชุดสวยๆ อัตโนมัติ">🎲 สุ่มชุด</button>
+        </div>
+
+        <div class="av-preset-bar" id="av-preset-row"></div>
+
+        <div class="av-tabs">
+          <button type="button" class="av-tab-btn active" data-tab="outfit">ชุด &amp; สี</button>
+          <button type="button" class="av-tab-btn" data-tab="face">ผม &amp; หน้า</button>
+          <button type="button" class="av-tab-btn" data-tab="head">หมวก &amp; ปีก</button>
+          <button type="button" class="av-tab-btn" data-tab="aura">ของถือ &amp; ออร่า</button>
+        </div>
+
+        <div class="av-tab-panel" id="av-panel-outfit">
+          <div class="k-section-head"><span>เลือกชุดแต่งกาย (8 แบบ)</span></div>
+          <div class="av-choice-grid" id="av-outfit-grid"></div>
+          <div class="k-section-head" style="margin-top:12px;"><span>สีผ้า / สีชุดหลัก</span></div>
+          <div class="av-swatch-row" id="av-color-grid"></div>
+        </div>
+
+        <div class="av-tab-panel" id="av-panel-face" style="display:none;">
+          <div class="k-section-head"><span>สีผิว</span></div>
+          <div class="av-swatch-row" id="av-skin-grid"></div>
+          <div class="k-section-head" style="margin-top:12px;">
+            <span>ทรงผม &amp; สีผม (7 ทรง)</span>
+            <div class="av-haircolor-row" id="av-haircolor-grid"></div>
+          </div>
+          <div class="av-choice-grid av-grid-3" id="av-hair-grid"></div>
+          <div class="k-section-head" style="margin-top:12px;"><span>แว่นตา &amp; หน้ากากงานวัด (6 แบบ)</span></div>
+          <div class="av-choice-grid" id="av-glasses-grid"></div>
+        </div>
+
+        <div class="av-tab-panel" id="av-panel-head" style="display:none;">
+          <div class="k-section-head"><span>หมวก &amp; เครื่องประดับหัว (7 แบบ)</span></div>
+          <div class="av-choice-grid" id="av-hat-grid"></div>
+          <div class="k-section-head" style="margin-top:12px;"><span>ปีก &amp; ของตกแต่งหลัง (5 แบบ)</span></div>
+          <div class="av-choice-grid" id="av-back-grid"></div>
+        </div>
+
+        <div class="av-tab-panel" id="av-panel-aura" style="display:none;">
+          <div class="k-section-head"><span>ของถือเดินเล่นริมสระ (6 แบบ)</span></div>
+          <div class="av-choice-grid" id="av-prop-grid"></div>
+          <div class="k-section-head" style="margin-top:12px;"><span>ออร่า &amp; เพื่อนจิ๋วลอยตาม (5 แบบ)</span></div>
+          <div class="av-choice-grid" id="av-aura-grid"></div>
+        </div>
+
+        <div class="dressing-footer">
+          <button class="btn-primary-gold" id="btn-save-avatar" style="width:100%;">
+            บันทึกชุด • เดินเล่นสระหลวงเลย
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPONSOR BILLBOARD CONTACT MODAL -->
+    <div class="modal-backdrop" id="sponsor-modal" style="display:none;">
+      <div class="editorial-modal sponsor-box">
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow" id="sp-slot-banner">พื้นที่โฆษณา 3D สระหลวง อ.หนองไผ่</p>
+            <h2 id="sp-headline">พื้นที่โฆษณาบนป้าย 3D สระหลวง</h2>
+          </div>
+          <button class="modal-close-btn" id="btn-close-sponsor">✕</button>
+        </div>
+        <p class="modal-desc" id="sp-subhead">-</p>
+
+        <div class="sp-contact-card">
+          <div class="sp-contact-title">สนใจลงป้ายโฆษณา ติดต่อทาง LINE</div>
+          <div class="sp-contact-row">
+            <span>LINE ID: <b id="sp-contact-line">nineza4456</b></span>
+            <div style="display:flex;gap:6px;">
+              <button type="button" class="btn-outline-gold sp-copy-btn" id="btn-copy-contact-line">คัดลอก LINE</button>
+              <a id="btn-open-contact-line" href="https://line.me/ti/p/~nineza4456" target="_blank" rel="noopener" style="text-decoration:none;">
+                <button type="button" class="btn-primary-gold sp-copy-btn">เปิดแชท LINE</button>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KRATHONG SEARCH MODAL -->
+    <div class="modal-backdrop" id="search-krathong-modal" style="display:none;">
+      <div class="editorial-modal search-k-box">
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow">สระหลวง หนองไผ่ • ค้นหา</p>
+            <h2>ค้นหากระทง &amp; คำอธิษฐาน</h2>
+          </div>
+          <button class="modal-close-btn" id="btn-close-search">✕</button>
+        </div>
+        <input type="text" id="krathong-search-input" class="k-input" placeholder="พิมพ์ชื่อผู้ลอย หรือคำอธิษฐาน...">
+        <div class="search-k-results" id="krathong-search-results"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/textures.js"></script>
+  <script src="js/avatar-system.js"></script>
+  <script src="js/world-saluang.js"></script>
+  <script src="js/characters-loykrathong.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

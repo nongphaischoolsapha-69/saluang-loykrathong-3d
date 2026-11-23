@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin • สระหลวง หนองไผ่ 3D</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070e1c;
+      --panel: rgba(15, 23, 42, 0.92);
+      --border: rgba(212, 175, 106, 0.35);
+      --gold: #d4af6a;
+      --gold-bright: #f5d896;
+      --ivory: #f6f0e4;
+      --muted: #94a3b8;
+      --danger: #ef4444;
+      --ok: #4ade80;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Prompt', sans-serif;
+      background: radial-gradient(circle at top, #13213e 0%, var(--bg) 70%);
+      color: var(--ivory);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .wrap { max-width: 1120px; margin: 0 auto; }
+    header {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+      gap: 12px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border);
+    }
+    h1 { font-family: 'Noto Serif Thai', serif; color: var(--gold-bright); font-size: 24px; }
+    .sub { font-size: 13px; color: var(--muted); }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 18px;
+    }
+    .login-box { max-width: 440px; margin: 60px auto; text-align: center; }
+    input[type="text"], input[type="password"] {
+      width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06); color: var(--ivory); font-family: inherit; font-size: 14px; margin: 10px 0;
+    }
+    button {
+      cursor: pointer; border: none; border-radius: 999px; font-family: inherit; font-weight: 500;
+      padding: 9px 18px; font-size: 13px; transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-gold { background: linear-gradient(135deg, #e7c67f, #c49342); color: #111827; font-weight: 600; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--ivory); }
+    .btn-danger { background: rgba(239,68,68,0.18); border: 1px solid rgba(239,68,68,0.5); color: #fca5a5; padding: 5px 12px; font-size: 12px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .kpi { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+    .kpi .k-label { font-size: 12px; color: var(--muted); }
+    .kpi .k-val { font-size: 26px; font-weight: 700; color: var(--gold-bright); margin-top: 4px; }
+    .kpi .k-val.online { color: var(--ok); }
+    .section-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .section-head h2 { font-size: 17px; color: var(--gold); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: middle; }
+    th { color: var(--muted); font-weight: 500; font-size: 12px; }
+    .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; background: rgba(212,175,106,0.16); color: var(--gold-bright); }
+    .table-wrap { overflow-x: auto; }
+    .toast { position: fixed; bottom: 20px; right: 20px; background: #1e293b; border: 1px solid var(--gold); padding: 10px 18px; border-radius: 999px; font-size: 13px; display: none; z-index: 99; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>ระบบจัดการ &amp; สถิติงานลอยกระทง สระหลวง 3D</h1>
+        <p class="sub">ดูแลข้อความกระทง ผู้เล่นออนไลน์ และดูสถิติคลิกป้ายโฆษณาสำหรับเสนอสปอนเซอร์</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a href="/" style="text-decoration:none;"><button class="btn-outline">เปิดหน้าเว็บ 3D</button></a>
+        <button class="btn-outline" id="btn-refresh" style="display:none;">รีเฟรชข้อมูล</button>
+        <button class="btn-danger" id="btn-logout" style="display:none;">ออกจากระบบ</button>
+      </div>
+    </header>
+
+    <div id="login-view" class="card login-box">
+      <h2 style="color:var(--gold-bright);margin-bottom:6px;">เข้าสู่ระบบแอดมิน</h2>
+      <p class="sub">กรอก Admin Key (ค่าเริ่มต้นสำหรับเครื่องทดสอบ: <code>saluang2569</code>)</p>
+      <input type="password" id="admin-key-input" placeholder="กรอก Admin Key...">
+      <div id="login-err" style="color:#f87171;font-size:12.5px;min-height:18px;margin-bottom:6px;"></div>
+      <button class="btn-gold" id="btn-login" style="width:100%;">เข้าสู่ระบบ</button>
+    </div>
+
+    <div id="dash-view" style="display:none;">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="k-label">ออนไลน์ขณะนี้</div><div class="k-val online" id="kpi-online">0</div></div>
+        <div class="kpi"><div class="k-label">ผู้เข้าเล่นสะสม</div><div class="k-val" id="kpi-visits">0</div></div>
+        <div class="kpi"><div class="k-label">กระทงลอยแล้วทั้งหมด</div><div class="k-val" id="kpi-krathongs">0</div></div>
+        <div class="kpi"><div class="k-label">กดสาธุ / อวยพร</div><div class="k-val" id="kpi-bless">0</div></div>
+        <div class="kpi"><div class="k-label">จุดพลุออนไลน์</div><div class="k-val" id="kpi-fireworks">0</div></div>
+        <div class="kpi"><div class="k-label">เปิดดูติดต่อโฆษณา / คูปอง</div><div class="k-val" id="kpi-sponsor">0 / 0</div></div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>📊 สถิติคลิกป้ายโฆษณา 3D รายจุด</h2>
+        </div>
+        <div id="sponsor-breakdown" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>👥 ผู้เล่นออนไลน์รอบสระหลวง (<span id="online-list-count">0</span>)</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ชื่อ</th><th>ชุด &amp; ของตกแต่ง</th><th>ตำแหน่ง</th><th>Action</th></tr>
+            </thead>
+            <tbody id="players-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>🪷 จัดการกระทงในสระ (<span id="k-list-count">0</span>)</h2>
+          <input type="text" id="k-filter" placeholder="ค้นหาชื่อ หรือคำอธิษฐาน..." style="max-width:280px;margin:0;">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ชื่อ</th><th>คำอธิษฐาน</th><th>ประเภท</th><th>สาธุ</th><th>Action</th></tr>
+            </thead>
+            <tbody id="krathongs-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const KEY_STORE = 'saluang_admin_key';
+    let adminKey = sessionStorage.getItem(KEY_STORE) || '';
+    let cachedData = null;
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      clearTimeout(t._tid);
+      t._tid = setTimeout(() => { t.style.display = 'none'; }, 2400);
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function loadOverview() {
+      if (!adminKey) return;
+      try {
+        const res = await fetch('/api/admin/overview', {
+          headers: { 'x-admin-key': adminKey },
+          cache: 'no-store'
+        });
+        if (res.status === 401) {
+          adminKey = '';
+          sessionStorage.removeItem(KEY_STORE);
+          document.getElementById('login-view').style.display = 'block';
+          document.getElementById('dash-view').style.display = 'none';
+          document.getElementById('btn-refresh').style.display = 'none';
+          document.getElementById('btn-logout').style.display = 'none';
+          document.getElementById('login-err').textContent = 'Admin Key ไม่ถูกต้อง';
+          return;
+        }
+        const data = await res.json();
+        cachedData = data;
+        document.getElementById('login-err').textContent = '';
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('dash-view').style.display = 'block';
+        document.getElementById('btn-refresh').style.display = 'inline-block';
+        document.getElementById('btn-logout').style.display = 'inline-block';
+        renderOverview(data);
+      } catch (e) {
+        showToast('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ');
+      }
+    }
+
+    function renderOverview(d) {
+      const s = d.stats || {};
+      document.getElementById('kpi-online').textContent = d.onlineCount || 0;
+      document.getElementById('kpi-visits').textContent = s.totalVisits || 0;
+      document.getElementById('kpi-krathongs').textContent = s.totalKrathongsAllTime || (d.krathongs ? d.krathongs.length : 0);
+      document.getElementById('kpi-bless').textContent = s.totalBlessings || 0;
+      document.getElementById('kpi-fireworks').textContent = s.totalFireworks || 0;
+      document.getElementById('kpi-sponsor').textContent = `${s.contactOpens || 0} / ${s.couponOpens || 0}`;
+
+      const sb = document.getElementById('sponsor-breakdown');
+      const clicks = s.sponsorClicks || {};
+      const entries = Object.entries(clicks);
+      sb.innerHTML = entries.length
+        ? entries.map(([k, v]) => `<div class="kpi" style="min-width:190px;"><div class="k-label">${esc(k)}</div><div class="k-val" style="font-size:20px;">${v} คลิก</div></div>`).join('')
+        : '<span class="sub">ยังไม่มีการคลิกป้ายโฆษณา</span>';
+
+      const players = d.players || [];
+      document.getElementById('online-list-count').textContent = players.length;
+      document.getElementById('players-tbody').innerHTML = players.map(p => `
+        <tr>
+          <td><b>${esc(p.name)}</b><br><span class="sub">${esc(p.id)}</span></td>
+          <td>${esc(p.outfit)} | หมวก: ${esc(p.hat || 'none')} | ปีก/หลัง: ${esc(p.back || 'none')} | ออร่า: ${esc(p.aura || 'none')}</td>
+          <td>(${Number(p.x).toFixed(1)}, ${Number(p.z).toFixed(1)})</td>
+          <td><button class="btn-danger" onclick="kickPlayer('${esc(p.id)}')">เตะออก</button></td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" class="sub">ยังไม่มีผู้เล่นออนไลน์</td></tr>';
+
+      renderKrathongsTable();
+    }
+
+    function renderKrathongsTable() {
+      if (!cachedData) return;
+      const q = (document.getElementById('k-filter').value || '').trim().toLowerCase();
+      const list = (cachedData.krathongs || []).slice().reverse().filter(k =>
+        !q || (k.name || '').toLowerCase().includes(q) || (k.wish || '').toLowerCase().includes(q)
+      );
+      document.getElementById('k-list-count').textContent = list.length;
+      document.getElementById('krathongs-tbody').innerHTML = list.map(k => `
+        <tr>
+          <td><b>${esc(k.name)}</b></td>
+          <td>${esc(k.wish)}</td>
+          <td><span class="pill">${k.isVip ? 'VIP ทองคำ' : esc(k.baseId || k.typeId)}</span></td>
+          <td>♡ ${k.blessings || 0}</td>
+          <td><button class="btn-danger" onclick="deleteKrathong('${esc(k.id)}')">ลบกระทง</button></td>
+        </tr>
+      `).join('') || '<tr><td colspan="5" class="sub">ไม่พบกระทงที่ตรงเงื่อนไข</td></tr>';
+    }
+
+    window.deleteKrathong = async (id) => {
+      const res = await fetch('/api/admin/krathongs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) {
+        showToast('ลบกระทงเรียบร้อยแล้ว');
+        loadOverview();
+      }
+    };
+
+    window.kickPlayer = async (id) => {
+      const res = await fetch('/api/admin/kick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) {
+        showToast('นำผู้เล่นออกจากห้องเรียบร้อย');
+        loadOverview();
+      }
+    };
+
+    document.getElementById('btn-login').onclick = () => {
+      const val = document.getElementById('admin-key-input').value.trim();
+      if (!val) return;
+      adminKey = val;
+      sessionStorage.setItem(KEY_STORE, adminKey);
+      loadOverview();
+    };
+    document.getElementById('admin-key-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('btn-login').click();
+    });
+    document.getElementById('btn-refresh').onclick = loadOverview;
+    document.getElementById('btn-logout').onclick = () => {
+      adminKey = '';
+      sessionStorage.removeItem(KEY_STORE);
+      location.reload();
+    };
+    document.getElementById('k-filter').addEventListener('input', renderKrathongsTable);
+
+    if (adminKey) loadOverview();
+    setInterval(() => { if (adminKey) loadOverview(); }, 8000);
+  </script>
+</body>
+</html>

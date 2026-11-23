@@ -1,0 +1,12 @@
+{
+  "name": "hoitod-toto-saluang-3d",
+  "version": "2.0.0",
+  "description": "3D Real-Scale Sa Luang Pond Loy Krathong & Hoi Tod Toto Online Multiplayer Experience",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
