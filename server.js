@@ -20,10 +20,14 @@ const HOST = '0.0.0.0';
 const ROOT = __dirname;
 const IS_PROD = process.env.NODE_ENV === 'production';
 const MAX_SSE_CLIENTS = Number(process.env.MAX_SSE_CLIENTS) || 500;
+const MAX_SSE_PER_IP = Number(process.env.MAX_SSE_PER_IP) || 12;
+const MAX_PLAYERS_PER_IP = Number(process.env.MAX_PLAYERS_PER_IP) || 12;
+const MAX_ACTIVE_PLAYERS = Number(process.env.MAX_ACTIVE_PLAYERS) || 250;
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : ROOT;
 const DATA_FILE = path.join(DATA_DIR, 'krathongs.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
-const ADMIN_KEY = process.env.ADMIN_KEY || 'saluang2569';
+const ENV_ADMIN_KEY = String(process.env.ADMIN_KEY || '').trim();
+const ADMIN_KEY = IS_PROD ? ENV_ADMIN_KEY : (ENV_ADMIN_KEY || 'saluang2569');
 
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -93,8 +97,11 @@ function recordDeviceKrathong(quotaKey) {
 }
 
 function sanitizeText(raw, maxLen) {
-  let text = String(raw || '').replace(/[\r\n<>]/g, ' ').trim();
-  if (text.length > maxLen) text = text.slice(0, maxLen);
+  let text = String(raw || '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF\u00AD]/g, '')
+    .replace(/[\r\n<>]/g, ' ')
+    .trim();
+  if (text.length > maxLen) text = text.slice(0, maxLen).trim();
   text = text
     .replace(/https?:\/\/\S+/gi, '***')
     .replace(/www\.\S+/gi, '***')
@@ -249,8 +256,19 @@ function saveStats(immediate = false) {
 // --- Sliding-Window Per-IP Rate Limiter ---
 const rateBuckets = new Map();
 function getClientIp(req) {
+  const cfIp = IS_PROD ? String(req.headers['cf-connecting-ip'] || '').split(',')[0].trim() : '';
   const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return fwd || (req.socket && req.socket.remoteAddress) || 'local';
+  const raw = cfIp || fwd || (req.socket && req.socket.remoteAddress) || 'local';
+  return String(raw).slice(0, 64);
+}
+
+function getSecurityHeaders(req) {
+  try {
+    if (req && getRequestOrigin(req).startsWith('https://')) {
+      return Object.assign({ 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' }, SECURITY_HEADERS);
+    }
+  } catch (_) {}
+  return SECURITY_HEADERS;
 }
 
 function checkRateLimit(req, bucket, maxReq, windowMs) {
@@ -258,22 +276,26 @@ function checkRateLimit(req, bucket, maxReq, windowMs) {
   const key = `${ip}|${bucket}`;
   const now = Date.now();
   const cutoff = now - windowMs;
-  let arr = rateBuckets.get(key);
-  if (!arr) {
-    arr = [];
-    rateBuckets.set(key, arr);
+  let entry = rateBuckets.get(key);
+  if (!entry) {
+    entry = { ts: [], maxWindow: windowMs };
+    rateBuckets.set(key, entry);
+  } else if (windowMs > entry.maxWindow) {
+    entry.maxWindow = windowMs;
   }
-  while (arr.length && arr[0] < cutoff) arr.shift();
-  if (arr.length >= maxReq) return false;
-  arr.push(now);
+  while (entry.ts.length && entry.ts[0] < cutoff) entry.ts.shift();
+  if (entry.ts.length >= maxReq) return false;
+  entry.ts.push(now);
   return true;
 }
 
 setInterval(() => {
-  const cutoff = Date.now() - 120000;
-  for (const [k, arr] of rateBuckets.entries()) {
-    while (arr.length && arr[0] < cutoff) arr.shift();
-    if (arr.length === 0) rateBuckets.delete(k);
+  const now = Date.now();
+  for (const [k, entry] of rateBuckets.entries()) {
+    const win = (entry && entry.maxWindow) ? entry.maxWindow : 120000;
+    const cutoff = now - win;
+    while (entry.ts.length && entry.ts[0] < cutoff) entry.ts.shift();
+    if (entry.ts.length === 0) rateBuckets.delete(k);
   }
 }, 60000).unref();
 
@@ -308,7 +330,7 @@ function sendJson(res, status, obj) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    ...SECURITY_HEADERS
+    ...(res._secHeaders || SECURITY_HEADERS)
   });
   res.end(JSON.stringify(obj));
 }
@@ -322,20 +344,25 @@ function isAuthorizedAdmin(req) {
 }
 
 function guardAdminAuth(req, res) {
+  if (!ADMIN_KEY) {
+    sendJson(res, 503, { ok: false, error: 'Admin console disabled: ADMIN_KEY env var is not configured' });
+    return false;
+  }
   if (!checkRateLimit(req, 'admin_req', 60, 60000)) {
-    sendJson(res, 429, { ok: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' }, false);
+    sendJson(res, 429, { ok: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' });
     return false;
   }
   const failBucket = rateBuckets.get(`${getClientIp(req)}|admin_auth_fail`);
   const cutoff = Date.now() - 15 * 60 * 1000;
-  const recentFails = failBucket ? failBucket.filter(t => t >= cutoff).length : 0;
+  const failList = failBucket && Array.isArray(failBucket.ts) ? failBucket.ts : [];
+  const recentFails = failList.filter(t => t >= cutoff).length;
   if (recentFails >= 10) {
-    sendJson(res, 429, { ok: false, error: 'ลองผิดเกินจำนวนที่กำหนด กรุณารอ 15 นาที' }, false);
+    sendJson(res, 429, { ok: false, error: 'ลองผิดเกินจำนวนที่กำหนด กรุณารอ 15 นาที' });
     return false;
   }
   if (!isAuthorizedAdmin(req)) {
     checkRateLimit(req, 'admin_auth_fail', 20, 15 * 60 * 1000);
-    sendJson(res, 401, { ok: false, error: 'Unauthorized' }, false);
+    sendJson(res, 401, { ok: false, error: 'Unauthorized' });
     return false;
   }
   return true;
@@ -344,6 +371,7 @@ function guardAdminAuth(req, res) {
 // --- Real-Time Online Multiplayer Store & SSE Broadcaster ---
 const activePlayers = new Map();
 const sseClients = new Set();
+const sseCountByIp = new Map();
 const PLAYER_TTL_MS = 14000;
 let playersBroadcastTimer = null;
 let lastPlayersBroadcastAt = 0;
@@ -449,13 +477,15 @@ setInterval(() => {
       try {
         client.write(': keepalive\n\n');
       } catch (e) {
-        sseClients.delete(client);
+        if (typeof client._sseCleanup === 'function') client._sseCleanup();
+        else sseClients.delete(client);
       }
     }
   }
 }, 5000).unref();
 
 const server = http.createServer(async (req, res) => {
+  res._secHeaders = getSecurityHeaders(req);
   const urlPath = (req.url || '/').split('?')[0];
 
   if (req.headers.origin && !isSameOriginAllowed(req)) {
@@ -467,7 +497,7 @@ const server = http.createServer(async (req, res) => {
     const optHeaders = {
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, x-admin-key',
-      ...SECURITY_HEADERS
+      ...(res._secHeaders || SECURITY_HEADERS)
     };
     if (!isAdminOpt && req.headers.origin && isSameOriginAllowed(req)) {
       optHeaders['Access-Control-Allow-Origin'] = req.headers.origin;
@@ -496,13 +526,19 @@ const server = http.createServer(async (req, res) => {
     if (sseClients.size >= MAX_SSE_CLIENTS) {
       return sendJson(res, 503, { ok: false, error: 'ขณะนี้มีผู้เข้าชมเต็มความจุชั่วคราว กรุณาลองใหม่ในอีกสักครู่' });
     }
+    const clientIp = getClientIp(req);
+    const ipSseCount = sseCountByIp.get(clientIp) || 0;
+    if (ipSseCount >= MAX_SSE_PER_IP) {
+      return sendJson(res, 429, { ok: false, error: 'เปิดการเชื่อมต่อจากเครือข่ายนี้มากเกินไป กรุณารอสักครู่' });
+    }
+    sseCountByIp.set(clientIp, ipSseCount + 1);
     if (req.socket && req.socket.setNoDelay) req.socket.setNoDelay(true);
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
-      ...SECURITY_HEADERS
+      ...(res._secHeaders || SECURITY_HEADERS)
     });
 
     const players = getPlayersSnapshot();
@@ -520,7 +556,16 @@ const server = http.createServer(async (req, res) => {
     res.write(`event: init\ndata: ${JSON.stringify(initPayload)}\n\n`);
     sseClients.add(res);
 
-    const cleanup = () => sseClients.delete(res);
+    let sseCleaned = false;
+    const cleanup = () => {
+      if (sseCleaned) return;
+      sseCleaned = true;
+      sseClients.delete(res);
+      const cur = (sseCountByIp.get(clientIp) || 1) - 1;
+      if (cur > 0) sseCountByIp.set(clientIp, cur);
+      else sseCountByIp.delete(clientIp);
+    };
+    res._sseCleanup = cleanup;
     req.on('close', cleanup);
     res.on('close', cleanup);
     return;
@@ -540,8 +585,22 @@ const server = http.createServer(async (req, res) => {
       if (!id) return sendJson(res, 400, { ok: false, error: 'Missing player id' });
 
       const now = Date.now();
+      const clientIp = getClientIp(req);
       const prev = activePlayers.get(id);
       const isNew = !prev;
+      if (isNew) {
+        pruneInactivePlayers();
+        if (activePlayers.size >= MAX_ACTIVE_PLAYERS) {
+          return sendJson(res, 503, { ok: false, error: 'ขณะนี้มีผู้เดินเล่นในสระหลวงเต็มความจุ กรุณาลองใหม่สักครู่' });
+        }
+        let sameIpCount = 0;
+        for (const p of activePlayers.values()) {
+          if (p.ip === clientIp) sameIpCount++;
+        }
+        if (sameIpCount >= MAX_PLAYERS_PER_IP) {
+          return sendJson(res, 429, { ok: false, error: 'มีผู้เล่นจากเครือข่ายนี้เปิดพร้อมกันมากเกินไป กรุณาปิดแท็บที่ไม่ได้ใช้งาน' });
+        }
+      }
       const isVip = Boolean(data.isVip);
 
       let outfit = VALID_OUTFITS.has(data.outfit) ? data.outfit : 'sabai';
@@ -654,6 +713,9 @@ const server = http.createServer(async (req, res) => {
 
   // Sponsor Billboard / Contact / Keepsake Analytics Tracking
   if (urlPath === '/api/track' && req.method === 'POST') {
+    if (getBannedIpInfo(req)) {
+      return sendJson(res, 403, { ok: false, error: 'IP นี้ถูกระงับการใช้งานชั่วคราว' });
+    }
     if (!checkRateLimit(req, 'track', 40, 60000)) {
       return sendJson(res, 429, { ok: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' });
     }
@@ -679,6 +741,9 @@ const server = http.createServer(async (req, res) => {
 
   // Clean Disconnect via sendBeacon or fetch
   if (urlPath === '/api/leave' && req.method === 'POST') {
+    if (!checkRateLimit(req, 'leave', 60, 60000)) {
+      return sendJson(res, 429, { ok: false, error: 'Too many requests' });
+    }
     try {
       const data = await readJsonBody(req, 1024);
       const id = sanitizeId(data.id);
@@ -920,14 +985,14 @@ const server = http.createServer(async (req, res) => {
 
   // Static File Serving (Strict Allowlist Only)
   if (req.method !== 'GET' && req.method !== 'HEAD') {
-    res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS });
+    res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8', ...(res._secHeaders || SECURITY_HEADERS) });
     return res.end('Method Not Allowed');
   }
   let rel = '';
   try {
     rel = decodeURIComponent(urlPath === '/' ? '/index.html' : urlPath).replace(/^\/+/, '');
   } catch (err) {
-    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS });
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8', ...(res._secHeaders || SECURITY_HEADERS) });
     return res.end('Bad Request');
   }
   const relNorm = rel.replace(/\\/g, '/');
@@ -936,25 +1001,26 @@ const server = http.createServer(async (req, res) => {
   const isAllowedStatic = !hasHiddenOrTraversal && (
     relNorm === 'index.html' ||
     relNorm === 'admin.html' ||
+    relNorm === 'manifest.json' ||
     (relNorm.startsWith('css/') && ext === '.css') ||
     (relNorm.startsWith('js/') && ext === '.js') ||
     (relNorm.startsWith('assets/') && (ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.svg'))
   );
   if (!isAllowedStatic) {
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS });
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...(res._secHeaders || SECURITY_HEADERS) });
     return res.end('Not Found');
   }
 
   const rootResolved = path.resolve(ROOT);
   const filePath = path.resolve(rootResolved, relNorm);
   if (filePath !== rootResolved && !filePath.startsWith(rootResolved + path.sep)) {
-    res.writeHead(403, SECURITY_HEADERS);
+    res.writeHead(403, res._secHeaders || SECURITY_HEADERS);
     return res.end('Forbidden');
   }
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY_HEADERS });
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...(res._secHeaders || SECURITY_HEADERS) });
       return res.end('Not Found');
     }
 
@@ -968,16 +1034,22 @@ const server = http.createServer(async (req, res) => {
     let cacheControl = 'no-store';
     if (ext === '.html') {
       cacheControl = 'no-cache';
+    } else if (relNorm === 'manifest.json') {
+      cacheControl = 'public, max-age=3600';
     } else if (isAsset && (ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.svg')) {
       cacheControl = 'public, max-age=86400';
     } else if (ext === '.js' || ext === '.css') {
       cacheControl = IS_PROD ? 'public, max-age=300' : 'no-store';
     }
 
+    const contentType = relNorm === 'manifest.json'
+      ? 'application/manifest+json; charset=utf-8'
+      : (MIME_TYPES[ext] || 'application/octet-stream');
+
     const headers = {
-      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+      'Content-Type': contentType,
       'Cache-Control': cacheControl,
-      ...SECURITY_HEADERS
+      ...(res._secHeaders || SECURITY_HEADERS)
     };
 
     const compressible = ext === '.html' || ext === '.css' || ext === '.js' || ext === '.json' || ext === '.svg';
@@ -1021,8 +1093,8 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(PORT, HOST, () => {
-  if (IS_PROD && ADMIN_KEY === 'saluang2569') {
-    console.warn('SECURITY WARNING: Using default ADMIN_KEY in production! Please set ADMIN_KEY env var.');
+  if (IS_PROD && !ADMIN_KEY) {
+    console.warn('SECURITY NOTICE: ADMIN_KEY env var not set in production; /api/admin/* endpoints are disabled.');
   }
   const nets = os.networkInterfaces();
   const lanIps = [];

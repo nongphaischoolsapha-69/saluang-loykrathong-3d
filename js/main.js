@@ -2387,6 +2387,7 @@
     if (e.code === 'Digit1') setCameraMode(1);
     else if (e.code === 'Digit3') setCameraMode(3);
     else if (e.code === 'KeyT') cycleTimeOfDay();
+    else if (e.code === 'KeyF') toggleFullscreen();
     else if (e.code === 'Space' && STATE.cookPanelOpen && STATE.pan.active) stirPan();
     else if (e.code === 'KeyE' && STATE.cookPanelOpen && STATE.pan.active) plateFromPan();
     else if (e.code === 'Escape') {
@@ -2663,6 +2664,48 @@
   };
   document.getElementById('btn-cam-mode').onclick = () => setCameraMode(STATE.camMode === 1 ? 3 : 1);
   document.getElementById('btn-time').onclick = () => cycleTimeOfDay();
+
+  function isFullscreenSupported() {
+    const el = document.documentElement;
+    return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+  }
+
+  function isInFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  function updateFullscreenBtn() {
+    const fsBtn = document.getElementById('btn-fullscreen');
+    const fsLbl = document.getElementById('btn-fs-label');
+    if (!fsBtn) return;
+    if (!isFullscreenSupported()) {
+      fsBtn.style.display = 'none';
+      return;
+    }
+    const active = isInFullscreen();
+    fsBtn.style.opacity = active ? '1' : '0.92';
+    fsBtn.classList.toggle('tool-btn-gold', active);
+    if (fsLbl) fsLbl.textContent = active ? 'ย่อจอ' : 'เต็มจอ';
+  }
+
+  function toggleFullscreen() {
+    if (!isFullscreenSupported()) return;
+    if (isInFullscreen()) {
+      const ex = document.exitFullscreen || document.webkitExitFullscreen;
+      if (ex) Promise.resolve(ex.call(document)).catch(() => {});
+    } else {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) Promise.resolve(req.call(el)).catch(() => {});
+    }
+  }
+
+  const fsBtnEl = document.getElementById('btn-fullscreen');
+  if (fsBtnEl) fsBtnEl.onclick = toggleFullscreen;
+  document.addEventListener('fullscreenchange', () => { updateFullscreenBtn(); handleViewportResize(); });
+  document.addEventListener('webkitfullscreenchange', () => { updateFullscreenBtn(); handleViewportResize(); });
+  updateFullscreenBtn();
+
   document.getElementById('btn-mute').onclick = () => {
     STATE.muted = !STATE.muted;
     document.getElementById('btn-mute').style.opacity = STATE.muted ? '0.45' : '1';
@@ -3716,13 +3759,18 @@
 
   function hbWalk(p) { return p; }
 
-  window.addEventListener('resize', () => {
+  function handleViewportResize() {
     const vp = getViewportSize();
     camera.fov = isEffectivePortrait() ? 68 : 56;
     camera.aspect = vp.w / vp.h;
     camera.updateProjectionMatrix();
     renderer.setSize(vp.w, vp.h);
-  });
+  }
+
+  window.addEventListener('resize', handleViewportResize);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', handleViewportResize);
+  }
 
   animate();
 })();

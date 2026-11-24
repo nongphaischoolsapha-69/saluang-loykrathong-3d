@@ -6,6 +6,12 @@
   <title>ลอยกระทง สระหลวง หนองไผ่ • 3D</title>
   <meta name="description" content="แต่งตัว 3D ออนไลน์ เดินชมสวนสาธารณะสระหลวง อ.หนองไผ่ จ.เพชรบูรณ์ ลอยกระทง อวยพร จุดพลุ และแวะร้านเจ๊แพรรี่ หอยทอด ผัดไทย">
   <meta name="theme-color" content="#070e1c">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="สระหลวง 3D">
+  <link rel="apple-touch-icon" href="/assets/cover.jpg">
   <meta property="og:title" content="ลอยกระทงออนไลน์ สระหลวง หนองไผ่ • 3D">
   <meta property="og:description" content="แต่งชุดไทย/แฟนตาซี 3D เดินเล่นริมสระหลวง ลอยกระทงเขียนคำอธิษฐานพร้อมเพื่อนแบบเรียลไทม์">
   <meta property="og:type" content="website">
@@ -95,6 +101,11 @@
           <button class="icon-tool-btn" id="btn-photo-mode" title="โหมดถ่ายรูป">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <span class="mobile-only-lbl">ถ่ายรูป</span>
+          </button>
+
+          <button class="icon-tool-btn" id="btn-fullscreen" title="เต็มหน้าจอ (F)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            <span class="mobile-only-lbl" id="btn-fs-label">เต็มจอ</span>
           </button>
 
           <button class="icon-tool-btn" id="btn-mute" title="เปิด / ปิดเสียง">

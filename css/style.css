@@ -27,6 +27,7 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
   background: #070e1c;
@@ -1109,20 +1110,21 @@ body.overlay-open #mobile-cam-pad {
   }
   .top-tools-wrap {
     display: grid;
-    grid-template-columns: 1.25fr repeat(5, 1fr);
-    gap: 5px;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 4px;
     width: 100%;
   }
   .top-tools-wrap .icon-tool-btn {
     width: 100%;
+    min-width: 0;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     gap: 2px;
-    padding: 5px 2px;
+    padding: 5px 1px;
     min-height: 38px;
     border-radius: 12px;
-    font-size: 10px;
+    font-size: 9.5px;
     line-height: 1.1;
     white-space: nowrap;
   }
