@@ -1796,6 +1796,7 @@
 
     const payload = {
       id: MY_PLAYER_ID,
+      deviceId: MY_DEVICE_ID,
       name: myProfile.name,
       outfit: myProfile.outfit,
       color: myProfile.color,

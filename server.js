@@ -26,6 +26,9 @@ const MAX_ACTIVE_PLAYERS = Number(process.env.MAX_ACTIVE_PLAYERS) || 250;
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : ROOT;
 const DATA_FILE = path.join(DATA_DIR, 'krathongs.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
+const VISITORS_FILE = path.join(DATA_DIR, 'visitors.json');
+const SHEETS_WEBHOOK_URL = String(process.env.SHEETS_WEBHOOK_URL || '').trim();
+const SHEETS_SECRET = String(process.env.SHEETS_SECRET || '').trim();
 const ENV_ADMIN_KEY = String(process.env.ADMIN_KEY || '').trim();
 const ADMIN_KEY = IS_PROD ? ENV_ADMIN_KEY : (ENV_ADMIN_KEY || 'saluang2569');
 
@@ -210,6 +213,7 @@ function readStats() {
   const seedCount = readKrathongs().length;
   const fallback = {
     totalVisits: 0,
+    peakOnline: 0,
     totalKrathongsAllTime: seedCount,
     totalBlessings: 0,
     totalFireworks: 0,
@@ -230,6 +234,189 @@ function readStats() {
   } catch (e) {
     return fallback;
   }
+}
+
+function parseDeviceType(userAgent) {
+  const ua = String(userAgent || '');
+  if (/ipad|tablet|playbook|silk/i.test(ua)) return 'Tablet';
+  if (/iphone|ipod/i.test(ua)) return 'Mobile (iOS)';
+  if (/android/i.test(ua)) return /mobile/i.test(ua) ? 'Mobile (Android)' : 'Tablet';
+  if (/mobile|mobi/i.test(ua)) return 'Mobile';
+  return 'Desktop';
+}
+
+function csvCell(val) {
+  let str = String(val === undefined || val === null ? '' : val);
+  if (/^[=+\-@\t\r]/.test(str)) str = "'" + str;
+  if (/[",\r\n]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+const MAX_VISITORS_STORED = 2000;
+const visitorsMap = (() => {
+  const map = new Map();
+  try {
+    if (fs.existsSync(VISITORS_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(VISITORS_FILE, 'utf8'));
+      if (Array.isArray(parsed)) {
+        parsed.slice(-MAX_VISITORS_STORED).forEach(v => {
+          if (v && v.visitorKey) map.set(v.visitorKey, v);
+        });
+      }
+    }
+  } catch (_) {}
+  return map;
+})();
+
+let visitorsFlushTimer = null;
+function saveVisitors(immediate = false) {
+  const flush = () => {
+    visitorsFlushTimer = null;
+    try {
+      const arr = [...visitorsMap.values()].slice(-MAX_VISITORS_STORED);
+      writeFileSafe(VISITORS_FILE, JSON.stringify(arr, null, 2));
+    } catch (_) {}
+  };
+  if (immediate) {
+    if (visitorsFlushTimer) {
+      clearTimeout(visitorsFlushTimer);
+      visitorsFlushTimer = null;
+    }
+    flush();
+  } else if (!visitorsFlushTimer) {
+    visitorsFlushTimer = setTimeout(flush, 1800);
+  }
+}
+
+function setVisitorBounded(key, rec) {
+  if (visitorsMap.has(key)) {
+    visitorsMap.delete(key);
+  }
+  visitorsMap.set(key, rec);
+  while (visitorsMap.size > MAX_VISITORS_STORED) {
+    const oldestKey = visitorsMap.keys().next().value;
+    if (!oldestKey) break;
+    visitorsMap.delete(oldestKey);
+  }
+}
+
+async function sendToGoogleSheets(eventObj) {
+  if (!SHEETS_WEBHOOK_URL || !/^https?:\/\//i.test(SHEETS_WEBHOOK_URL)) {
+    return { ok: false, error: 'ยังไม่ได้ตั้งค่า SHEETS_WEBHOOK_URL' };
+  }
+  if (typeof fetch !== 'function') {
+    return { ok: false, error: 'Node runtime does not support fetch' };
+  }
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 6500);
+  try {
+    const payload = Object.assign({}, eventObj, {
+      secret: SHEETS_SECRET,
+      ts: eventObj.ts || new Date().toISOString()
+    });
+    const r = await fetch(SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      signal: ac.signal
+    });
+    return { ok: r.ok, status: r.status };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : 'Request failed' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const pendingNameWebhookTimers = new Map();
+function scheduleNameUpdateWebhook(visitorKey, rec) {
+  if (!SHEETS_WEBHOOK_URL) return;
+  const old = pendingNameWebhookTimers.get(visitorKey);
+  if (old) clearTimeout(old);
+  const tid = setTimeout(() => {
+    pendingNameWebhookTimers.delete(visitorKey);
+    sendToGoogleSheets({
+      event: 'name_update',
+      visitorKey,
+      name: rec.name,
+      firstName: rec.firstName,
+      deviceType: rec.deviceType,
+      outfit: rec.outfit,
+      visits: rec.visits,
+      krathongsCount: rec.krathongsCount,
+      ip: rec.ip
+    }).catch(() => {});
+  }, 4000);
+  if (tid.unref) tid.unref();
+  pendingNameWebhookTimers.set(visitorKey, tid);
+}
+
+function upsertVisitorOnPresence(req, data, entry, isNewSession) {
+  const devId = sanitizeId(data && data.deviceId);
+  const visitorKey = devId ? `dev:${devId}` : `ip:${entry.ip}`;
+  const devType = parseDeviceType(req.headers['user-agent']);
+  const nowIso = new Date().toISOString();
+  const existing = visitorsMap.get(visitorKey);
+
+  if (!existing) {
+    const rec = {
+      visitorKey,
+      name: entry.name,
+      firstName: entry.name,
+      deviceType: devType,
+      outfit: entry.outfit,
+      visits: 1,
+      krathongsCount: 0,
+      ip: entry.ip,
+      firstSeenAt: nowIso,
+      lastSeenAt: nowIso
+    };
+    setVisitorBounded(visitorKey, rec);
+    saveVisitors(false);
+    sendToGoogleSheets({
+      event: 'visit',
+      visitorKey,
+      name: rec.name,
+      deviceType: rec.deviceType,
+      outfit: rec.outfit,
+      visits: rec.visits,
+      krathongsCount: rec.krathongsCount,
+      ip: rec.ip
+    }).catch(() => {});
+    return rec;
+  }
+
+  const prevName = existing.name;
+  const nameChanged = Boolean(entry.name && entry.name !== prevName);
+  existing.name = entry.name || existing.name;
+  existing.deviceType = devType;
+  existing.outfit = entry.outfit;
+  existing.ip = entry.ip;
+  existing.lastSeenAt = nowIso;
+  if (isNewSession) {
+    existing.visits = (Number(existing.visits) || 0) + 1;
+  }
+  setVisitorBounded(visitorKey, existing);
+  saveVisitors(false);
+
+  if (isNewSession) {
+    sendToGoogleSheets({
+      event: 'visit',
+      visitorKey,
+      name: existing.name,
+      deviceType: existing.deviceType,
+      outfit: existing.outfit,
+      visits: existing.visits,
+      krathongsCount: existing.krathongsCount || 0,
+      ip: existing.ip
+    }).catch(() => {});
+  } else if (nameChanged && existing.name !== 'นักท่องเที่ยว') {
+    scheduleNameUpdateWebhook(visitorKey, existing);
+  }
+  return existing;
 }
 
 let statsCache = readStats();
@@ -642,10 +829,15 @@ const server = http.createServer(async (req, res) => {
       };
 
       activePlayers.set(id, entry);
+      if (activePlayers.size > (statsCache.peakOnline || 0)) {
+        statsCache.peakOnline = activePlayers.size;
+        saveStats(false);
+      }
       if (isNew) {
         statsCache.totalVisits++;
         saveStats(false);
       }
+      upsertVisitorOnPresence(req, data, entry, isNew);
       schedulePlayersBroadcast(isNew);
       return sendJson(res, 200, { ok: true, count: activePlayers.size });
     } catch (err) {
@@ -883,6 +1075,43 @@ const server = http.createServer(async (req, res) => {
       statsCache.totalKrathongsAllTime = Math.max(statsCache.totalKrathongsAllTime + 1, list.length);
       saveStats(true);
 
+      const vKey = deviceId ? `dev:${deviceId}` : `ip:${getClientIp(req)}`;
+      const vExisting = visitorsMap.get(vKey);
+      const nowIso = new Date().toISOString();
+      if (vExisting) {
+        vExisting.krathongsCount = (Number(vExisting.krathongsCount) || 0) + 1;
+        vExisting.lastSeenAt = nowIso;
+        if (!vExisting.name || vExisting.name === 'นักท่องเที่ยว') vExisting.name = name;
+        setVisitorBounded(vKey, vExisting);
+      } else {
+        setVisitorBounded(vKey, {
+          visitorKey: vKey,
+          name,
+          firstName: name,
+          deviceType: parseDeviceType(req.headers['user-agent']),
+          outfit: 'sabai',
+          visits: 1,
+          krathongsCount: 1,
+          ip: getClientIp(req),
+          firstSeenAt: nowIso,
+          lastSeenAt: nowIso
+        });
+      }
+      saveVisitors(false);
+      sendToGoogleSheets({
+        event: 'krathong',
+        visitorKey: vKey,
+        id: newItem.id,
+        name: newItem.name,
+        wish: newItem.wish,
+        baseId: newItem.baseId,
+        flowerId: newItem.flowerId,
+        candleId: newItem.candleId,
+        toppingId: newItem.toppingId,
+        isVip: newItem.isVip,
+        totalKrathongsAllTime: statsCache.totalKrathongsAllTime
+      }).catch(() => {});
+
       const allTimeTotal = statsCache.totalKrathongsAllTime;
       broadcastSSE('krathong', {
         krathong: newItem,
@@ -905,10 +1134,90 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       stats: statsCache,
       onlineCount: activePlayers.size,
+      uniqueVisitors: visitorsMap.size,
+      peakOnline: Math.max(statsCache.peakOnline || 0, activePlayers.size),
+      sheetsConfigured: Boolean(SHEETS_WEBHOOK_URL && /^https?:\/\//i.test(SHEETS_WEBHOOK_URL)),
       players: getPlayersSnapshot(true),
+      visitors: [...visitorsMap.values()],
       bannedIps: [...bannedIps.values()],
       krathongs: list
     });
+  }
+
+  if (urlPath === '/api/admin/visitors.csv' && req.method === 'GET') {
+    if (!guardAdminAuth(req, res)) return;
+    const rows = [
+      ['ลำดับ', 'ชื่อผู้เล่น', 'อุปกรณ์', 'ชุดล่าสุด', 'จำนวนครั้งเข้าเล่น', 'จำนวนกระทงที่ลอย', 'เข้าครั้งแรก', 'เข้าล่าสุด', 'IP', 'รหัสเครื่อง']
+    ];
+    const allVisitors = [...visitorsMap.values()].slice().reverse();
+    allVisitors.forEach((v, idx) => {
+      rows.push([
+        idx + 1,
+        v.name || '',
+        v.deviceType || '',
+        v.outfit || '',
+        Number(v.visits) || 1,
+        Number(v.krathongsCount) || 0,
+        v.firstSeenAt || '',
+        v.lastSeenAt || '',
+        v.ip || '',
+        v.visitorKey || ''
+      ]);
+    });
+    const csvBody = '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="saluang-visitors.csv"',
+      'Cache-Control': 'no-store',
+      ...(res._secHeaders || SECURITY_HEADERS)
+    });
+    return res.end(csvBody);
+  }
+
+  if (urlPath === '/api/admin/krathongs.csv' && req.method === 'GET') {
+    if (!guardAdminAuth(req, res)) return;
+    const rows = [
+      ['ลำดับ', 'ชื่อผู้ลอย', 'คำอธิษฐาน', 'ฐาน', 'ดอกไม้', 'สีเทียน', 'ของมงคล', 'กระทงทองคำ', 'ยอดสาธุ', 'เวลาที่ลอย']
+    ];
+    const allK = readKrathongs().slice().reverse();
+    allK.forEach((k, idx) => {
+      rows.push([
+        idx + 1,
+        k.name || '',
+        k.wish || '',
+        k.baseId || k.typeId || '',
+        k.flowerId || '',
+        k.candleId || '',
+        k.toppingId || '',
+        k.isVip ? 'ใช่' : 'ไม่',
+        Number(k.blessings) || 0,
+        k.createdAt || ''
+      ]);
+    });
+    const csvBody = '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="saluang-krathongs.csv"',
+      'Cache-Control': 'no-store',
+      ...(res._secHeaders || SECURITY_HEADERS)
+    });
+    return res.end(csvBody);
+  }
+
+  if (urlPath === '/api/admin/sheets/test' && req.method === 'POST') {
+    if (!guardAdminAuth(req, res)) return;
+    if (!SHEETS_WEBHOOK_URL || !/^https?:\/\//i.test(SHEETS_WEBHOOK_URL)) {
+      return sendJson(res, 400, { ok: false, error: 'ยังไม่ได้ตั้งค่า SHEETS_WEBHOOK_URL ใน Environment' });
+    }
+    const result = await sendToGoogleSheets({
+      event: 'test',
+      name: 'Admin Test Ping',
+      note: 'ทดสอบเชื่อมต่อ Google Sheets จากสระหลวง 3D สำเร็จ'
+    });
+    if (result.ok) {
+      return sendJson(res, 200, { ok: true, status: result.status });
+    }
+    return sendJson(res, 502, { ok: false, error: result.error || `HTTP ${result.status || 'Error'}` });
   }
 
   if (urlPath === '/api/admin/krathongs/delete' && req.method === 'POST') {
@@ -1082,6 +1391,7 @@ function shutdown(signal) {
   isShuttingDown = true;
   console.log(`Received ${signal}, shutting down gracefully...`);
   saveStats(true);
+  saveVisitors(true);
   for (const client of sseClients) {
     try { client.end(); } catch (_) { /* ignore */ }
   }

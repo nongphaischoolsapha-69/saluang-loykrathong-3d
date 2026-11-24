@@ -14,3 +14,7 @@ services:
         value: "200"
       - key: ADMIN_KEY
         sync: false
+      - key: SHEETS_WEBHOOK_URL
+        sync: false
+      - key: SHEETS_SECRET
+        sync: false

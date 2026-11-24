@@ -88,11 +88,25 @@
     <div id="dash-view" style="display:none;">
       <div class="kpi-grid">
         <div class="kpi"><div class="k-label">ออนไลน์ขณะนี้</div><div class="k-val online" id="kpi-online">0</div></div>
-        <div class="kpi"><div class="k-label">ผู้เข้าเล่นสะสม</div><div class="k-val" id="kpi-visits">0</div></div>
+        <div class="kpi"><div class="k-label">ออนไลน์สูงสุดพร้อมกัน</div><div class="k-val" id="kpi-peak">0</div></div>
+        <div class="kpi"><div class="k-label">ผู้เล่นไม่ซ้ำคน</div><div class="k-val" id="kpi-unique">0</div></div>
+        <div class="kpi"><div class="k-label">ผู้เข้าเล่นสะสม (ครั้ง)</div><div class="k-val" id="kpi-visits">0</div></div>
         <div class="kpi"><div class="k-label">กระทงลอยแล้วทั้งหมด</div><div class="k-val" id="kpi-krathongs">0</div></div>
         <div class="kpi"><div class="k-label">กดสาธุ / อวยพร</div><div class="k-val" id="kpi-bless">0</div></div>
         <div class="kpi"><div class="k-label">จุดพลุออนไลน์</div><div class="k-val" id="kpi-fireworks">0</div></div>
-        <div class="kpi"><div class="k-label">เปิดดูติดต่อโฆษณา / การ์ดที่ระลึก</div><div class="k-val" id="kpi-sponsor">0 / 0</div></div>
+        <div class="kpi"><div class="k-label">เปิดดูติดต่อโฆษณา / การ์ด</div><div class="k-val" id="kpi-sponsor">0 / 0</div></div>
+      </div>
+
+      <div class="card">
+        <div class="section-head" style="margin-bottom:4px;">
+          <div>
+            <h2>📒 เชื่อมต่อ Google Sheets สำรองข้อมูลถาวร</h2>
+            <p class="sub" id="sheets-status-badge" style="margin-top:4px;">กำลังตรวจสอบสถานะ...</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-outline" id="btn-test-sheets">ทดสอบส่งเข้า Google Sheets</button>
+          </div>
+        </div>
       </div>
 
       <div class="card">
@@ -118,6 +132,24 @@
 
       <div class="card">
         <div class="section-head">
+          <h2>📋 ประวัติผู้เข้าเล่นทั้งหมด (<span id="v-list-count">0</span>)</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="text" id="v-filter" placeholder="ค้นหาชื่อ / อุปกรณ์ / IP..." style="max-width:240px;margin:0;">
+            <button class="btn-gold" id="btn-export-visitors-csv">📥 ดาวน์โหลด CSV ผู้เข้าเล่น</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ชื่อล่าสุด (ครั้งแรก)</th><th>อุปกรณ์ &amp; ชุด</th><th>เข้าเล่น / ลอยกระทง</th><th>เวลาเข้าล่าสุด (ไทย)</th><th>IP</th></tr>
+            </thead>
+            <tbody id="visitors-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
           <h2>🚫 IP ที่ถูกแบนชั่วคราว (<span id="banned-list-count">0</span>)</h2>
         </div>
         <div class="table-wrap">
@@ -133,7 +165,10 @@
       <div class="card">
         <div class="section-head">
           <h2>🪷 จัดการกระทงในสระ (<span id="k-list-count">0</span>)</h2>
-          <input type="text" id="k-filter" placeholder="ค้นหาชื่อ หรือคำอธิษฐาน..." style="max-width:280px;margin:0;">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="text" id="k-filter" placeholder="ค้นหาชื่อ หรือคำอธิษฐาน..." style="max-width:240px;margin:0;">
+            <button class="btn-gold" id="btn-export-krathongs-csv">📥 ดาวน์โหลด CSV กระทง</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -196,14 +231,37 @@
       }
     }
 
+    function fmtThaiTime(iso) {
+      if (!iso) return '-';
+      try {
+        return new Date(iso).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false });
+      } catch (_) {
+        return String(iso);
+      }
+    }
+
     function renderOverview(d) {
       const s = d.stats || {};
       document.getElementById('kpi-online').textContent = d.onlineCount || 0;
+      document.getElementById('kpi-peak').textContent = d.peakOnline || s.peakOnline || 0;
+      document.getElementById('kpi-unique').textContent = d.uniqueVisitors || (d.visitors ? d.visitors.length : 0);
       document.getElementById('kpi-visits').textContent = s.totalVisits || 0;
       document.getElementById('kpi-krathongs').textContent = s.totalKrathongsAllTime || (d.krathongs ? d.krathongs.length : 0);
       document.getElementById('kpi-bless').textContent = s.totalBlessings || 0;
       document.getElementById('kpi-fireworks').textContent = s.totalFireworks || 0;
       document.getElementById('kpi-sponsor').textContent = `${s.contactOpens || 0} / ${s.couponOpens || 0}`;
+
+      const shBadge = document.getElementById('sheets-status-badge');
+      const shBtn = document.getElementById('btn-test-sheets');
+      if (shBadge) {
+        if (d.sheetsConfigured) {
+          shBadge.innerHTML = '<span style="color:#4ade80;">● เชื่อมต่อ SHEETS_WEBHOOK_URL แล้ว — ส่งชื่อผู้เล่น &amp; กระทงเข้า Google Sheets อัตโนมัติ</span>';
+          if (shBtn) shBtn.disabled = false;
+        } else {
+          shBadge.textContent = '○ ยังไม่ได้ใส่ SHEETS_WEBHOOK_URL (ดูคู่มือใน GOOGLE-SHEETS-SETUP.md เพื่อเชื่อมต่อ)';
+          if (shBtn) shBtn.disabled = true;
+        }
+      }
 
       const sb = document.getElementById('sponsor-breakdown');
       const clicks = s.sponsorClicks || {};
@@ -237,7 +295,56 @@
         </tr>
       `).join('') || '<tr><td colspan="4" class="sub">ยังไม่มี IP ที่ถูกแบน</td></tr>';
 
+      renderVisitorsTable();
       renderKrathongsTable();
+    }
+
+    function renderVisitorsTable() {
+      if (!cachedData) return;
+      const q = (document.getElementById('v-filter').value || '').trim().toLowerCase();
+      const list = (cachedData.visitors || []).slice().reverse().filter(v =>
+        !q ||
+        (v.name || '').toLowerCase().includes(q) ||
+        (v.firstName || '').toLowerCase().includes(q) ||
+        (v.deviceType || '').toLowerCase().includes(q) ||
+        (v.ip || '').toLowerCase().includes(q)
+      );
+      document.getElementById('v-list-count').textContent = list.length;
+      document.getElementById('visitors-tbody').innerHTML = list.map(v => {
+        const firstNote = (v.firstName && v.firstName !== v.name) ? `<br><span class="sub">ชื่อแรก: ${esc(v.firstName)}</span>` : '';
+        return `
+        <tr>
+          <td><b>${esc(v.name || 'นักท่องเที่ยว')}</b>${firstNote}</td>
+          <td><span class="pill">${esc(v.deviceType || '-')}</span><br><span class="sub">${esc(v.outfit || 'sabai')}</span></td>
+          <td>${Number(v.visits) || 1} ครั้ง • 🪷 ${Number(v.krathongsCount) || 0} ใบ</td>
+          <td>${esc(fmtThaiTime(v.lastSeenAt))}<br><span class="sub">แรก: ${esc(fmtThaiTime(v.firstSeenAt))}</span></td>
+          <td><span class="sub">${esc(v.ip || '-')}</span></td>
+        </tr>
+      `;
+      }).join('') || '<tr><td colspan="5" class="sub">ยังไม่มีประวัติผู้เข้าเล่น</td></tr>';
+    }
+
+    async function downloadAdminCsv(endpoint, filename) {
+      if (!adminKey) return;
+      try {
+        const res = await fetch(endpoint, { headers: { 'x-admin-key': adminKey }, cache: 'no-store' });
+        if (!res.ok) {
+          showToast('ดาวน์โหลด CSV ไม่สำเร็จ');
+          return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast(`ดาวน์โหลด ${filename} เรียบร้อยแล้ว`);
+      } catch (_) {
+        showToast('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ');
+      }
     }
 
     function renderKrathongsTable() {
@@ -331,7 +438,22 @@
       sessionStorage.removeItem(KEY_STORE);
       location.reload();
     };
+    document.getElementById('v-filter').addEventListener('input', renderVisitorsTable);
     document.getElementById('k-filter').addEventListener('input', renderKrathongsTable);
+    document.getElementById('btn-export-visitors-csv').onclick = () => downloadAdminCsv('/api/admin/visitors.csv', 'saluang-visitors.csv');
+    document.getElementById('btn-export-krathongs-csv').onclick = () => downloadAdminCsv('/api/admin/krathongs.csv', 'saluang-krathongs.csv');
+    document.getElementById('btn-test-sheets').onclick = async () => {
+      try {
+        const res = await fetch('/api/admin/sheets/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey }
+        });
+        const d = await res.json().catch(() => ({}));
+        showToast(res.ok ? 'ส่งข้อมูลทดสอบเข้า Google Sheets สำเร็จ!' : (d.error || 'ส่งเข้า Google Sheets ไม่สำเร็จ'));
+      } catch (_) {
+        showToast('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ');
+      }
+    };
 
     if (adminKey) loadOverview();
     setInterval(() => { if (adminKey) loadOverview(); }, 8000);
