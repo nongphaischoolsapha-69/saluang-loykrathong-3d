@@ -160,13 +160,13 @@
     ctx.textAlign = 'center';
     ctx.fillStyle = '#b91c1c';
     ctx.font = '800 28px Kanit, Tahoma, sans-serif';
-    ctx.fillText('ร้าน', 83, 86);
-    ctx.font = '900 40px Kanit, Tahoma, sans-serif';
-    ctx.fillText('โตโต้', 83, 138);
+    ctx.fillText('เจ๊', 83, 82);
+    ctx.font = '900 34px Kanit, Tahoma, sans-serif';
+    ctx.fillText('แพรรี่', 83, 134);
     ctx.fillStyle = '#15803d';
     ctx.font = '700 20px Kanit, Tahoma, sans-serif';
-    ctx.fillText('หอยทอด', 83, 178);
-    ctx.fillText('ผัดไทย', 83, 206);
+    ctx.fillText('หอยทอด', 83, 176);
+    ctx.fillText('ผัดไทย', 83, 204);
 
     const items = [
       { name: 'หอยทอด', x: 222, plateCol: '#e08b2b', accent: '#3d2b1f', topText: false },
@@ -266,12 +266,12 @@
     ctx.fill();
 
     ctx.textAlign = 'center';
-    ctx.font = '900 86px Kanit, Tahoma, sans-serif';
+    ctx.font = '900 78px Kanit, Tahoma, sans-serif';
     ctx.lineWidth = 12;
     ctx.strokeStyle = '#ffffff';
-    ctx.strokeText('โตโต้', 384, 108);
+    ctx.strokeText('เจ๊แพรรี่', 384, 108);
     ctx.fillStyle = '#dc2626';
-    ctx.fillText('โตโต้', 384, 108);
+    ctx.fillText('เจ๊แพรรี่', 384, 108);
 
     ctx.font = '800 46px Kanit, Tahoma, sans-serif';
     ctx.lineWidth = 8;
@@ -545,9 +545,9 @@
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(68, 52, 120, 44);
     ctx.fillStyle = '#111827';
-    ctx.font = '800 30px Kanit, Tahoma, sans-serif';
+    ctx.font = '800 24px Kanit, Tahoma, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('โตโต้', 128, 84);
+    ctx.fillText('เจ๊แพรรี่', 128, 82);
 
     const tex = new THREE.CanvasTexture(c);
     tex.encoding = THREE.sRGBEncoding;

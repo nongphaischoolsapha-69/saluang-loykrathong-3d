@@ -1,7 +1,7 @@
 [
   {
     "id": "seed_1",
-    "name": "ร้านหอยทอด โตโต้",
+    "name": "เจ๊แพรรี่ หอยทอด ผัดไทย",
     "wish": "สุขสันต์วันเพ็ญเดือนสิบสอง สระหลวง หนองไผ่ แวะทานหอยทอดกรอบๆ นะครับ",
     "baseId": "gold",
     "flowerId": "marigold",
@@ -20,7 +20,7 @@
     "flowerId": "lotus",
     "typeId": "lotus",
     "isVip": false,
-    "blessings": 7,
+    "blessings": 11,
     "x": 14,
     "z": 21,
     "createdAt": "2026-11-23T12:05:00.000Z"
@@ -102,5 +102,44 @@
     "x": -8.06,
     "z": 53.95,
     "createdAt": "2026-11-23T15:49:40.715Z"
+  },
+  {
+    "id": "k_1795477342524_xnp5",
+    "name": "น้องฟ้าใส",
+    "wish": "ขอให้มีความสุข สุขภาพแข็งแรง ตลอดปี",
+    "baseId": "gold",
+    "flowerId": "orchid",
+    "typeId": "toto",
+    "isVip": true,
+    "blessings": 0,
+    "x": 13.12,
+    "z": 40.48,
+    "createdAt": "2026-11-23T23:42:22.526Z"
+  },
+  {
+    "id": "k_1795477358574_9kwc",
+    "name": "น้องฟ้าใส",
+    "wish": "ขอให้มีความสุข สุขภาพแข็งแรง ตลอดปี",
+    "baseId": "gold",
+    "flowerId": "orchid",
+    "typeId": "toto",
+    "isVip": true,
+    "blessings": 0,
+    "x": -27.26,
+    "z": 39.59,
+    "createdAt": "2026-11-23T23:42:38.578Z"
+  },
+  {
+    "id": "k_1795477361512_p7pb",
+    "name": "น้องฟ้าใส",
+    "wish": "ขอให้มีความสุข สุขภาพแข็งแรง ตลอดปี",
+    "baseId": "gold",
+    "flowerId": "orchid",
+    "typeId": "toto",
+    "isVip": true,
+    "blessings": 0,
+    "x": -27.19,
+    "z": 16.06,
+    "createdAt": "2026-11-23T23:42:41.516Z"
   }
 ]

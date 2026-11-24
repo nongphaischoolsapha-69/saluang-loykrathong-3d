@@ -546,7 +546,7 @@
       el.style.display = 'none';
       const safeName = String(item.name || 'ชาวหนองไผ่').replace(/</g, '&lt;');
       const blessCount = Number(item.blessings) || 0;
-      el.innerHTML = `<span class="kw-name">${item.isVip ? 'VIP • ' : ''}${safeName}</span>` +
+      el.innerHTML = `<span class="kw-name">${item.isVip ? '✨ ' : ''}${safeName}</span>` +
         (blessCount > 0 ? `<span class="kw-bless">♡ ${blessCount}</span>` : '');
       el.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -616,7 +616,7 @@
           if (nb !== existing.blessings) {
             existing.blessings = nb;
             const safeName = String(existing.name || 'ชาวหนองไผ่').replace(/</g, '&lt;');
-            existing.tagEl.innerHTML = `<span class="kw-name">${existing.isVip ? 'VIP • ' : ''}${safeName}</span>` +
+            existing.tagEl.innerHTML = `<span class="kw-name">${existing.isVip ? '✨ ' : ''}${safeName}</span>` +
               (nb > 0 ? `<span class="kw-bless">♡ ${nb}</span>` : '');
           }
           return;
@@ -630,7 +630,7 @@
       if (!pk) return;
       pk.blessings = blessings;
       const safeName = String(pk.name || 'ชาวหนองไผ่').replace(/</g, '&lt;');
-      pk.tagEl.innerHTML = `<span class="kw-name">${pk.isVip ? 'VIP • ' : ''}${safeName}</span>` +
+      pk.tagEl.innerHTML = `<span class="kw-name">${pk.isVip ? '✨ ' : ''}${safeName}</span>` +
         (blessings > 0 ? `<span class="kw-bless">♡ ${blessings}</span>` : '');
     }
 
@@ -650,7 +650,7 @@
 
     // Initial seed krathongs distributed across real-scale 90m x 56m pond
     [
-      { id: 'seed_init_1', name: 'ร้านหอยทอด โตโต้', wish: 'สุขสันต์วันเพ็ญเดือนสิบสอง สระหลวง หนองไผ่!', baseId: 'gold', flowerId: 'marigold', isVip: true, blessings: 12, x: 2.5, z: 18.5 },
+      { id: 'seed_init_1', name: 'เจ๊แพรรี่ หอยทอด ผัดไทย', wish: 'สุขสันต์วันเพ็ญเดือนสิบสอง สระหลวง หนองไผ่!', baseId: 'gold', flowerId: 'marigold', isVip: true, blessings: 12, x: 2.5, z: 18.5 },
       { id: 'seed_init_2', name: 'ชาวบ้านหนองไผ่', wish: 'ขอให้เดินทางปลอดภัย การงานราบรื่น', baseId: 'banana', flowerId: 'lotus', isVip: false, blessings: 7, x: 14.0, z: 21.0 },
       { id: 'seed_init_3', name: 'ศิษย์เก่าสระหลวง', wish: 'คิดถึงบรรยากาศเดินเล่นริมสระหลวงยามเย็น', baseId: 'coconut', flowerId: 'orchid', isVip: false, blessings: 5, x: -8.5, z: 27.5 }
     ].forEach(seed => addPondKrathongObject(seed, false));

@@ -183,12 +183,28 @@
   }
 
   function isModalBackdropOpen() {
-    if (STATE.krathongModalOpen || STATE.avatarModalOpen || STATE.sponsorModalOpen || STATE.searchModalOpen || (ritual && ritual.active)) return true;
-    return ['donate-modal', 'share-card-modal', 'wish-popover'].some(id => {
+    if (STATE.krathongModalOpen || STATE.avatarModalOpen || STATE.sponsorModalOpen || STATE.searchModalOpen || STATE.seamsiModalOpen || (ritual && ritual.active)) return true;
+    return ['donate-modal', 'share-card-modal', 'wish-popover', 'seamsi-modal'].some(id => {
       const el = document.getElementById(id);
       return el && el.style.display === 'flex';
     });
   }
+
+  let blessedIds = new Set();
+  try {
+    const savedBlessed = JSON.parse(localStorage.getItem('saluang_blessed_ids') || '[]');
+    if (Array.isArray(savedBlessed)) blessedIds = new Set(savedBlessed);
+  } catch (_) {}
+  function markIdBlessed(id) {
+    if (!id) return;
+    blessedIds.add(id);
+    try { localStorage.setItem('saluang_blessed_ids', JSON.stringify([...blessedIds].slice(-120))); } catch (_) {}
+  }
+
+  try {
+    const savedFortune = JSON.parse(sessionStorage.getItem('saluang_fortune_v1') || 'null');
+    if (savedFortune && savedFortune.title) STATE.myFortune = savedFortune;
+  } catch (_) {}
 
   const ritual = {
     active: false,
@@ -208,6 +224,8 @@
   const joyZone = document.getElementById('joystick-zone');
   const joyKnob = document.getElementById('joystick-knob');
   let joyPointerId = null;
+  let lookPointerId = null;
+  let camTurnDir = 0;
   let joyCenter = { x: 0, y: 0 };
 
   function resetJoystick(e) {
@@ -221,6 +239,9 @@
   function clearMovementInputs() {
     Object.keys(keys).forEach(k => { keys[k] = false; });
     joyPointerId = null;
+    lookPointerId = null;
+    camTurnDir = 0;
+    isDragging = false;
     joyVec.x = 0;
     joyVec.y = 0;
     hoverOnCanvas = false;
@@ -574,7 +595,7 @@
         hb.carryingDish = null;
         hb.state = 'RETURNING';
         sfx.playCash();
-        showCamToast('เสิร์ฟสำเร็จ! หอยทอดโตโต้กรอบหอมน่าทานมาก 🦪');
+        showCamToast('เสิร์ฟสำเร็จ! หอยทอดเจ๊แพรรี่กรอบหอมน่าทานมาก 🦪');
       } else if (hb.state === 'TO_CLEAN' && hb.targetTable) {
         while (hb.targetTable.dishAnchor.children.length) hb.targetTable.dishAnchor.remove(hb.targetTable.dishAnchor.children[0]);
         hb.targetTable.status = 'EMPTY';
@@ -677,17 +698,26 @@
   }
 
   // ============================================================
-  // 5. COMMUNITY KRATHONG WORKSHOP, WISH BLESSINGS, DONATE VIP & KEEPSAKE PNG
+  // 5. COMMUNITY KRATHONG WORKSHOP, WISH BLESSINGS, SUPPORT & KEEPSAKE PNG
   // ============================================================
   let activeWishItem = null;
 
   TOTO.onSelectKrathongWish = (item) => {
     clearMovementInputs();
     activeWishItem = item;
-    document.getElementById('wp-badge').textContent = item.isVip ? 'กระทงทองคำ VIP • สระหลวง' : 'คำอธิษฐานริมสระหลวง';
+    document.getElementById('wp-badge').textContent = item.isVip ? 'กระทงทองคำพิเศษ • สระหลวง' : 'คำอธิษฐานริมสระหลวง';
     document.getElementById('wp-name').textContent = item.name || 'ชาวหนองไผ่';
     document.getElementById('wp-wish').textContent = `"${item.wish || 'ขอให้มีความสุขตลอดปี'}"`;
-    document.getElementById('wp-bless-count').textContent = Number(item.blessings) || 0;
+    const blessCnt = Number(item.blessings) || 0;
+    const blessBtn = document.getElementById('btn-bless-krathong');
+    const already = blessedIds.has(item.id);
+    if (blessBtn) {
+      blessBtn.disabled = already;
+      blessBtn.style.opacity = already ? '0.68' : '1';
+      blessBtn.innerHTML = already
+        ? `🙏 ร่วมอวยพรแล้ว (<span id="wp-bless-count">${blessCnt}</span>)`
+        : `ร่วมอวยพร / สาธุ (<span id="wp-bless-count">${blessCnt}</span>)`;
+    }
     document.getElementById('wish-popover').style.display = 'flex';
     sfx.playPop();
   };
@@ -700,10 +730,13 @@
   async function blessActiveKrathong() {
     if (!activeWishItem || !activeWishItem.id) return;
     const id = activeWishItem.id;
-    activeWishItem.blessings = (Number(activeWishItem.blessings) || 0) + 1;
-    document.getElementById('wp-bless-count').textContent = activeWishItem.blessings;
-    charRefs.updateKrathongBlessingUI(id, activeWishItem.blessings);
-    sfx.playPop();
+    if (blessedIds.has(id)) {
+      showCamToast('คุณร่วมอวยพรกระทงนี้ไปแล้ว 🙏');
+      return;
+    }
+
+    const blessBtn = document.getElementById('btn-bless-krathong');
+    if (blessBtn) blessBtn.disabled = true;
 
     try {
       const res = await fetch('/api/krathongs/bless', {
@@ -711,15 +744,37 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       });
-      if (res.ok) {
-        const d = await res.json();
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 409 || d.alreadyBlessed) {
+        markIdBlessed(id);
         if (typeof d.blessings === 'number') {
           activeWishItem.blessings = d.blessings;
-          document.getElementById('wp-bless-count').textContent = d.blessings;
           charRefs.updateKrathongBlessingUI(id, d.blessings);
         }
+        if (blessBtn) {
+          blessBtn.disabled = true;
+          blessBtn.style.opacity = '0.68';
+          blessBtn.innerHTML = `🙏 ร่วมอวยพรแล้ว (<span id="wp-bless-count">${activeWishItem.blessings || 0}</span>)`;
+        }
+        showCamToast('คุณร่วมอวยพรกระทงนี้ไปแล้ว 🙏');
+        return;
+      }
+      if (res.ok) {
+        markIdBlessed(id);
+        const nb = typeof d.blessings === 'number' ? d.blessings : ((Number(activeWishItem.blessings) || 0) + 1);
+        activeWishItem.blessings = nb;
+        charRefs.updateKrathongBlessingUI(id, nb);
+        sfx.playPop();
+        if (blessBtn) {
+          blessBtn.disabled = true;
+          blessBtn.style.opacity = '0.68';
+          blessBtn.innerHTML = `🙏 ร่วมอวยพรแล้ว (<span id="wp-bless-count">${nb}</span>)`;
+        }
+        return;
       }
     } catch (_) {}
+
+    if (blessBtn) blessBtn.disabled = false;
   }
 
   let lastFetchedTotal = -1;
@@ -765,7 +820,7 @@
     const mono = TOTO.MONETIZATION || {};
     const amtSec = document.getElementById('donate-amt-section');
     const copyBtn = document.getElementById('btn-copy-pp');
-    document.getElementById('donate-pp-name').textContent = mono.promptPayName || 'ร้านหอยทอด โตโต้';
+    document.getElementById('donate-pp-name').textContent = mono.promptPayName || 'เจ๊แพรรี่ หอยทอด ผัดไทย';
 
     document.querySelectorAll('.donate-amt-btn').forEach(b => {
       b.classList.toggle('active', Number(b.dataset.amt) === STATE.donateAmount);
@@ -812,7 +867,7 @@
       const btn = document.createElement('button');
       btn.className = 'k-choice' + (STATE.selectedBase === kb.id ? ' selected' : '');
       const vipTag = kb.vipOnly
-        ? `<div class="kc-vip-tag">${STATE.vipUnlocked ? 'ปลดล็อก VIP แล้ว' : 'ร่วมสนับสนุนเพื่อปลดล็อก'}</div>`
+        ? `<div class="kc-vip-tag">${STATE.vipUnlocked ? 'ปลดล็อกแล้ว ✨' : 'ร่วมสนับสนุนเพื่อปลดล็อก'}</div>`
         : '';
       btn.innerHTML = `<div class="kc-name">${kb.name}</div><div class="kc-desc">${kb.desc}</div>${vipTag}`;
       btn.onclick = () => {
@@ -858,6 +913,82 @@
     document.getElementById('krathong-modal').style.display = 'none';
   }
 
+  function updateShareFortuneLine() {
+    const fEl = document.getElementById('sc-fortune-line');
+    if (!fEl) return;
+    if (STATE.myFortune && STATE.myFortune.title) {
+      fEl.style.display = 'inline-block';
+      fEl.textContent = `🔮 เซียมซีใบที่ ${STATE.myFortune.num} (${STATE.myFortune.level}) • ${STATE.myFortune.title}`;
+    } else {
+      fEl.style.display = 'none';
+    }
+  }
+
+  function renderSeamSiResult(fortune) {
+    const resEl = document.getElementById('seamsi-result');
+    const hintEl = document.getElementById('seamsi-hint');
+    if (!resEl || !fortune) return;
+    document.getElementById('ss-stick-num').textContent = `ใบที่ ${fortune.num}`;
+    document.getElementById('ss-level').textContent = fortune.level;
+    document.getElementById('ss-title').textContent = fortune.title;
+    document.getElementById('ss-text').textContent = fortune.text;
+    resEl.style.display = 'block';
+    if (hintEl) hintEl.textContent = 'คำทำนายของคุณถูกแนบในการ์ดที่ระลึกแล้ว ✨';
+  }
+
+  let seamSiTimer = null;
+  function openSeamSiModal() {
+    clearMovementInputs();
+    document.getElementById('emote-menu').style.display = 'none';
+    STATE.emoteMenuOpen = false;
+    STATE.seamsiModalOpen = true;
+    const cup = document.getElementById('seamsi-cup');
+    if (cup) cup.classList.remove('shaking');
+    if (STATE.myFortune) {
+      renderSeamSiResult(STATE.myFortune);
+    } else {
+      const rEl = document.getElementById('seamsi-result');
+      const hEl = document.getElementById('seamsi-hint');
+      if (rEl) rEl.style.display = 'none';
+      if (hEl) hEl.textContent = 'ตั้งจิตอธิษฐาน แล้วกดปุ่มเขย่าติ้วเซียมซีด้านล่าง';
+    }
+    document.getElementById('seamsi-modal').style.display = 'flex';
+    sfx.playPop();
+  }
+
+  function closeSeamSiModal() {
+    if (seamSiTimer) { clearTimeout(seamSiTimer); seamSiTimer = null; }
+    const cup = document.getElementById('seamsi-cup');
+    if (cup) cup.classList.remove('shaking');
+    STATE.seamsiModalOpen = false;
+    document.getElementById('seamsi-modal').style.display = 'none';
+  }
+
+  function shakeSeamSi() {
+    const list = TOTO.FORTUNES || [];
+    if (!list.length || seamSiTimer) return;
+    const cup = document.getElementById('seamsi-cup');
+    const hintEl = document.getElementById('seamsi-hint');
+    const resEl = document.getElementById('seamsi-result');
+    const btn = document.getElementById('btn-shake-seamsi');
+    if (cup) cup.classList.add('shaking');
+    if (hintEl) hintEl.textContent = 'กำลังเสี่ยงทายคำทำนายมงคล... 🎋';
+    if (resEl) resEl.style.display = 'none';
+    if (btn) btn.disabled = true;
+    sfx.playCuteGreeting('seamsi', 1.0);
+    seamSiTimer = setTimeout(() => {
+      seamSiTimer = null;
+      if (cup) cup.classList.remove('shaking');
+      if (btn) btn.disabled = false;
+      const pick = list[Math.floor(Math.random() * list.length)];
+      STATE.myFortune = pick;
+      try { sessionStorage.setItem('saluang_fortune_v1', JSON.stringify(pick)); } catch (_) {}
+      renderSeamSiResult(pick);
+      updateShareFortuneLine();
+      showCamToast(`🔮 เซียมซีใบที่ ${pick.num}: ${pick.title}`);
+    }, 650);
+  }
+
   function openShareCardModal(meta) {
     clearMovementInputs();
     trackAnalytics('share_card_open', 'share_card');
@@ -871,10 +1002,11 @@
     };
     lastShareMeta = m;
 
-    document.getElementById('sc-krathong-badge').textContent = `${m.baseName || 'กระทงใบตอง'} • ${m.flowerName || 'ดอกบัวชมพู'}${m.isVip ? ' (VIP ทองคำ)' : ''}${m.perfectMoon ? ' • ✨ ลอยตรงแสงจันทร์' : ''}`;
+    document.getElementById('sc-krathong-badge').textContent = `${m.baseName || 'กระทงใบตอง'} • ${m.flowerName || 'ดอกบัวชมพู'}${m.isVip ? ' (กระทงทองคำ)' : ''}${m.perfectMoon ? ' • ✨ ลอยตรงแสงจันทร์' : ''}`;
     document.getElementById('sc-name').textContent = m.name;
     document.getElementById('sc-wish').textContent = `"${m.wish}"`;
-    document.getElementById('sc-shop-title').textContent = mono.shopCardTitle || 'ร้านหอยทอด โตโต้ • สระหลวง หนองไผ่';
+    updateShareFortuneLine();
+    document.getElementById('sc-shop-title').textContent = mono.shopCardTitle || 'เจ๊แพรรี่ หอยทอด ผัดไทย • สระหลวง หนองไผ่';
     document.getElementById('sc-shop-sub').textContent = mono.shopCardSubtitle || 'แวะชิมหอยทอดกรอบ ออส่วน ผัดไทยร้อนๆ ได้ที่หน้าร้านจริง';
     document.getElementById('sc-shop-address').textContent = mono.shopAddress || 'ซอยสระหลวงใต้ (ซอยเทศบาล 34) อ.หนองไผ่';
     document.getElementById('share-card-modal').style.display = 'flex';
@@ -964,8 +1096,14 @@
     }
     if (line) lines.push(line);
     lines.slice(0, 3).forEach((ln, idx) => {
-      ctx.fillText(ln, 540, 880 + idx * 44);
+      ctx.fillText(ln, 540, 874 + idx * 42);
     });
+
+    if (STATE.myFortune && STATE.myFortune.title) {
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '600 24px Prompt, sans-serif';
+      ctx.fillText(`🔮 เซียมซีใบที่ ${STATE.myFortune.num} (${STATE.myFortune.level}): ${STATE.myFortune.title}`, 540, 1022);
+    }
 
     // Clean shop location footer (no discount/coupon)
     ctx.strokeStyle = 'rgba(212, 175, 106, 0.45)';
@@ -974,7 +1112,7 @@
 
     ctx.fillStyle = '#f6f0e4';
     ctx.font = '600 28px Prompt, sans-serif';
-    ctx.fillText(mono.shopCardTitle || 'ร้านหอยทอด โตโต้ • สระหลวง หนองไผ่', 540, 1122);
+    ctx.fillText(mono.shopCardTitle || 'เจ๊แพรรี่ หอยทอด ผัดไทย • สระหลวง หนองไผ่', 540, 1122);
 
     ctx.fillStyle = '#e8c785';
     ctx.font = '500 24px Prompt, sans-serif';
@@ -1282,16 +1420,24 @@
         rp.animMoving = Boolean(p.moving);
 
         const emSeq = Number(p.emoteSeq) || 0;
+        let playedPeerSound = false;
         if (emSeq > rp.lastEmoteSeq && p.emote) {
           rp.lastEmoteSeq = emSeq;
           rp.activeEmote = p.emote;
           rp.emoteTimer = p.emote === 'ramwong' ? 4.2 : (p.emote === 'jump' ? 2.2 : 2.6);
+          if (rp.curPos.distanceTo(toto.pos) < 18) {
+            sfx.playCuteGreeting(p.emote, 0.45);
+            playedPeerSound = true;
+          }
         }
         const chSeq = Number(p.chatSeq) || 0;
         if (chSeq > rp.lastChatSeq && p.chat) {
           rp.lastChatSeq = chSeq;
           rp.chatText = p.chat;
           rp.chatTimer = 5.2;
+          if (!playedPeerSound && rp.curPos.distanceTo(toto.pos) < 18) {
+            sfx.playCuteGreeting('chat', 0.45, p.chat);
+          }
         }
       }
     }
@@ -1450,7 +1596,7 @@
     const dur = emoteName === 'ramwong' ? 4.2 : (emoteName === 'jump' ? 2.2 : 2.6);
     toto.activeEmote = emoteName;
     toto.emoteTimer = dur;
-    sfx.playPop();
+    sfx.playCuteGreeting(emoteName, 1.0);
     postEmote(emoteName);
     document.getElementById('emote-menu').style.display = 'none';
     STATE.emoteMenuOpen = false;
@@ -1468,7 +1614,7 @@
     if (!clean) return;
     toto.localChat = clean;
     toto.localChatTimer = 5.2;
-    sfx.playPop();
+    sfx.playCuteGreeting('chat', 1.0, clean);
     postEmote('chat', { text: clean });
     document.getElementById('emote-menu').style.display = 'none';
     STATE.emoteMenuOpen = false;
@@ -1497,7 +1643,7 @@
       btn.type = 'button';
       btn.className = 'av-choice-btn' + (currentId === item.id ? ' selected' : '');
       const vipBadge = item.vipOnly
-        ? `<div class="av-vip-pill">${STATE.vipUnlocked ? 'ปลดล็อก VIP แล้ว ✨' : 'สนับสนุน VIP เพื่อปลดล็อก'}</div>`
+        ? `<div class="av-vip-pill">${STATE.vipUnlocked ? 'ปลดล็อกแล้ว ✨' : 'ร่วมสนับสนุนเพื่อปลดล็อก'}</div>`
         : '';
       const descHtml = item.desc ? `<div class="av-c-desc">${item.desc}</div>` : '';
       btn.innerHTML = `<div class="av-c-name">${item.name}</div>${descHtml}${vipBadge}`;
@@ -1638,7 +1784,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'search-k-item';
-      btn.innerHTML = `<div class="sk-name">${pk.isVip ? '👑 VIP • ' : '🪷 '}${escapeHtml(pk.name || 'ชาวหนองไผ่')} (♡ ${pk.blessings || 0})</div><div class="sk-wish">"${escapeHtml(pk.wish || '')}"</div>`;
+      btn.innerHTML = `<div class="sk-name">${pk.isVip ? '✨ ' : '🪷 '}${escapeHtml(pk.name || 'ชาวหนองไผ่')} (♡ ${pk.blessings || 0})</div><div class="sk-wish">"${escapeHtml(pk.wish || '')}"</div>`;
       btn.onclick = () => {
         closeSearchKrathongModal();
         if (TOTO.onSelectKrathongWish) TOTO.onSelectKrathongWish(pk);
@@ -1892,6 +2038,7 @@
       closeKrathongModal();
       closeDonateModal();
       closeShareCardModal();
+      closeSeamSiModal();
       closeWishPopover();
       closeSponsorModal();
       closeSearchKrathongModal();
@@ -1920,6 +2067,23 @@
   joyZone.addEventListener('pointerup', resetJoystick);
   joyZone.addEventListener('pointercancel', resetJoystick);
 
+  function bindCamTurnBtn(el, dir) {
+    if (!el) return;
+    el.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      camTurnDir = dir;
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(evName => {
+      el.addEventListener(evName, (e) => {
+        e.stopPropagation();
+        if (camTurnDir === dir) camTurnDir = 0;
+      });
+    });
+  }
+  bindCamTurnBtn(document.getElementById('btn-cam-left'), 1);
+  bindCamTurnBtn(document.getElementById('btn-cam-right'), -1);
+
   function updateJoystickFromEvent(e) {
     const dx = e.clientX - joyCenter.x;
     const dy = e.clientY - joyCenter.y;
@@ -1934,6 +2098,8 @@
   }
 
   renderer.domElement.addEventListener('pointerdown', (e) => {
+    if (e.pointerId === joyPointerId) return;
+    lookPointerId = e.pointerId;
     isDragging = true;
     dragMoved = false;
     lastMouseX = e.clientX;
@@ -1947,6 +2113,8 @@
 
   window.addEventListener('pointermove', (e) => {
     if (!STATE.started || e.pointerId === joyPointerId) return;
+    if (e.pointerType === 'touch' && isDragging && lookPointerId !== null && e.pointerId !== lookPointerId) return;
+
     hoverX = e.clientX;
     hoverY = e.clientY;
     hoverOnCanvas = (e.target === renderer.domElement);
@@ -1967,9 +2135,9 @@
     const yawSens = isMouse ? 0.0055 : 0.0078;
     const pitchSens = isMouse ? 0.0045 : 0.0058;
     const modalOpen = isModalBackdropOpen();
-    const overUI = !!(e.target && e.target.closest && e.target.closest('#cook-panel, .editorial-modal, .dressing-drawer, .emote-menu, .landmark-menu, #toto-stall-bar, #main-dock, .krathong-wish-tag, .sponsor-world-tag, #photo-mode-bar, .icon-tool-btn, .location-pill'));
+    const overUI = !!(e.target && e.target.closest && e.target.closest('#cook-panel, .editorial-modal, .dressing-drawer, .emote-menu, .landmark-menu, #toto-stall-bar, #main-dock, .krathong-wish-tag, .sponsor-world-tag, #photo-mode-bar, .icon-tool-btn, .location-pill, #mobile-cam-pad'));
 
-    if (isDragging) {
+    if (isDragging && (isMouse || lookPointerId === null || e.pointerId === lookPointerId)) {
       if (Math.hypot(dx, dy) > 4) dragMoved = true;
       if (STATE.avatarModalOpen || (STATE.photoMode && STATE.selfieMode)) {
         manualPreviewDrag = true;
@@ -2003,10 +2171,15 @@
     }
   });
 
-  window.addEventListener('pointerup', (e) => {
+  function endLookPointer(e) {
     if (e.pointerId === joyPointerId) return;
-    isDragging = false;
-  });
+    if (e.pointerType !== 'touch' || lookPointerId === null || e.pointerId === lookPointerId) {
+      isDragging = false;
+      lookPointerId = null;
+    }
+  }
+  window.addEventListener('pointerup', endLookPointer);
+  window.addEventListener('pointercancel', endLookPointer);
 
   // ============================================================
   // 8. UI BUTTON BINDINGS
@@ -2175,11 +2348,43 @@
   };
   document.getElementById('btn-photo-capture').onclick = () => {
     renderer.render(scene, camera);
+    const srcCanvas = renderer.domElement;
+    const wm = document.createElement('canvas');
+    wm.width = srcCanvas.width;
+    wm.height = srcCanvas.height;
+    const ctx = wm.getContext('2d');
+    ctx.drawImage(srcCanvas, 0, 0);
+
+    const w = wm.width;
+    const h = wm.height;
+    const barH = Math.max(66, Math.round(h * 0.11));
+    const grad = ctx.createLinearGradient(0, h - barH * 1.4, 0, h);
+    grad.addColorStop(0, 'rgba(7, 14, 28, 0)');
+    grad.addColorStop(1, 'rgba(7, 14, 28, 0.86)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, h - barH * 1.4, w, barH * 1.4);
+
+    ctx.strokeStyle = 'rgba(212, 175, 106, 0.72)';
+    ctx.lineWidth = Math.max(2, Math.round(w * 0.002));
+    ctx.strokeRect(10, 10, w - 20, h - 20);
+
+    const padX = Math.max(22, Math.round(w * 0.025));
+    const fontSz = Math.max(15, Math.min(26, Math.round(w * 0.018)));
+    ctx.font = `600 ${fontSz}px Prompt, Tahoma, sans-serif`;
+    ctx.fillStyle = '#f5d896';
+    ctx.textAlign = 'left';
+    ctx.fillText('ลอยกระทง สระหลวง อ.หนองไผ่ • เจ๊แพรรี่ หอยทอด ผัดไทย', padX, h - Math.round(barH * 0.36));
+
+    ctx.font = `500 ${Math.max(13, Math.round(fontSz * 0.85))}px Prompt, Tahoma, sans-serif`;
+    ctx.fillStyle = '#f6f0e4';
+    ctx.textAlign = 'right';
+    ctx.fillText(`โดย ${myProfile.name || 'นักท่องเที่ยว'}`, w - padX, h - Math.round(barH * 0.36));
+
     const link = document.createElement('a');
     link.download = `sa-luang-loy-krathong-${Date.now()}.png`;
-    link.href = renderer.domElement.toDataURL('image/png');
+    link.href = wm.toDataURL('image/png');
     link.click();
-    showCamToast('บันทึกรูปภาพสระหลวง PNG เรียบร้อยแล้ว');
+    showCamToast('บันทึกรูปภาพที่ระลึก PNG เรียบร้อยแล้ว 📸');
   };
 
   document.getElementById('btn-open-krathong').onclick = openKrathongModal;
@@ -2298,7 +2503,7 @@
     try { localStorage.setItem('toto_vip_unlocked', '1'); } catch (_) {}
     closeDonateModal();
     sfx.playCash();
-    showCamToast('ปลดล็อกกระทงทองคำและชุด VIP เรียบร้อยแล้ว');
+    showCamToast('ปลดล็อกกระทงทองคำและของขวัญพิเศษเรียบร้อยแล้ว ✨');
     if (afterVipDonateTarget === 'avatar_vip') {
       afterVipDonateTarget = null;
       rebuildPlayerAvatar({ outfit: 'vip_gold' });
@@ -2317,11 +2522,20 @@
   document.getElementById('btn-download-card').onclick = downloadKeepsakeCardPNG;
   document.getElementById('btn-share-copy').onclick = () => {
     const m = lastShareMeta || { name: 'ชาวหนองไผ่', wish: 'สุขสันต์วันลอยกระทง สระหลวง หนองไผ่' };
-    const msg = `ลอยกระทงออนไลน์ ณ สระหลวง อ.หนองไผ่\nโดย: ${m.name}\n"${m.wish}"\n${window.location.href}`;
+    const fLine = STATE.myFortune && STATE.myFortune.title ? `\n🔮 เซียมซีใบที่ ${STATE.myFortune.num}: ${STATE.myFortune.title}` : '';
+    const msg = `ลอยกระทงออนไลน์ ณ สระหลวง อ.หนองไผ่\nโดย: ${m.name}\n"${m.wish}"${fLine}\n${window.location.href}`;
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).catch(() => {});
     showCamToast('คัดลอกคำอวยพรและลิงก์แล้ว');
     sfx.playPop();
   };
+
+  document.getElementById('btn-open-seamsi').onclick = openSeamSiModal;
+  document.getElementById('btn-share-seamsi').onclick = () => {
+    closeShareCardModal();
+    openSeamSiModal();
+  };
+  document.getElementById('btn-close-seamsi').onclick = closeSeamSiModal;
+  document.getElementById('btn-shake-seamsi').onclick = shakeSeamSi;
 
   // ============================================================
   // 9. MAIN 60 FPS RENDER LOOP
@@ -2499,6 +2713,10 @@
     // Stable Direct Player Walking (locked while modal / dressing room is open)
     let isMoving = false;
     if (!isModalBackdropOpen()) {
+      if (camTurnDir !== 0) {
+        krathongCamFocusTimer = 0;
+        camYaw += camTurnDir * 1.95 * dt;
+      }
       let inpF = joyVec.y, inpR = joyVec.x;
       if (keys['KeyW'] || keys['ArrowUp']) inpF += 1;
       if (keys['KeyS'] || keys['ArrowDown']) inpF -= 1;

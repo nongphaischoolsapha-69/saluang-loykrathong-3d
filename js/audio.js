@@ -16,6 +16,7 @@
       this.ctx = null;
       this.sizzleGain = null;
       this.sizzleFilter = null;
+      this.waterGain = null;
       this.ready = false;
       this.noiseBuf = null;
       this.beatAccum = 0;
@@ -52,6 +53,22 @@
         this.sizzleFilter.connect(this.sizzleGain);
         this.sizzleGain.connect(this.ctx.destination);
         noise.start();
+
+        // Ambient gentle pond water shimmer
+        const waterNoise = this.ctx.createBufferSource();
+        waterNoise.buffer = this.noiseBuf;
+        waterNoise.loop = true;
+        const waterLp = this.ctx.createBiquadFilter();
+        waterLp.type = 'lowpass';
+        waterLp.frequency.value = 620;
+        waterLp.Q.value = 0.8;
+        this.waterGain = this.ctx.createGain();
+        this.waterGain.gain.value = 0.0001;
+        waterNoise.connect(waterLp);
+        waterLp.connect(this.waterGain);
+        this.waterGain.connect(this.ctx.destination);
+        waterNoise.start();
+
         this.ready = true;
       } catch (e) {
         // AudioContext unavailable
@@ -288,6 +305,58 @@
       });
     }
 
+    playCuteGreeting(kind, volScale = 1, seedText = '') {
+      if (!this.ready || TOTO.STATE.muted) return;
+      const t = this.ctx.currentTime;
+      const v = Math.max(0.2, Math.min(1.0, Number(volScale) || 1.0));
+
+      const tone = (startFreq, endFreq, delay, dur, type = 'sine', amp = 0.055) => {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(startFreq, t + delay);
+        if (endFreq !== startFreq) {
+          osc.frequency.exponentialRampToValueAtTime(Math.max(40, endFreq), t + delay + dur * 0.9);
+        }
+        g.gain.setValueAtTime(0.0001, t + delay);
+        g.gain.linearRampToValueAtTime(amp * v, t + delay + Math.min(0.02, dur * 0.25));
+        g.gain.exponentialRampToValueAtTime(0.0008, t + delay + dur);
+        osc.connect(g);
+        g.connect(this.ctx.destination);
+        osc.start(t + delay);
+        osc.stop(t + delay + dur + 0.02);
+      };
+
+      if (kind === 'wai') {
+        tone(540, 640, 0.0, 0.14, 'sine', 0.055);
+        tone(590, 520, 0.13, 0.20, 'sine', 0.05);
+      } else if (kind === 'wave') {
+        tone(587, 784, 0.0, 0.11, 'sine', 0.055);
+        tone(784, 988, 0.09, 0.12, 'sine', 0.055);
+        tone(880, 880, 0.19, 0.16, 'triangle', 0.045);
+      } else if (kind === 'ramwong') {
+        [659.25, 783.99, 880.0, 1046.5].forEach((f, idx) => {
+          tone(f, f * 1.02, idx * 0.07, 0.16, 'triangle', 0.048);
+        });
+      } else if (kind === 'jump') {
+        tone(440, 880, 0.0, 0.18, 'sine', 0.06);
+        tone(1174.66, 1318.5, 0.14, 0.16, 'triangle', 0.045);
+      } else if (kind === 'seamsi') {
+        for (let i = 0; i < 6; i++) {
+          const clickFreq = 180 + (i % 3) * 55;
+          tone(clickFreq, clickFreq * 0.65, i * 0.075, 0.045, 'triangle', 0.06);
+        }
+        tone(783.99, 783.99, 0.48, 0.22, 'sine', 0.05);
+        tone(1046.5, 1046.5, 0.56, 0.34, 'sine', 0.06);
+      } else {
+        const seed = String(seedText || '').length;
+        const base = 620 + (seed % 5) * 42;
+        tone(base, base * 1.18, 0.0, 0.09, 'sine', 0.052);
+        tone(base * 1.25, base * 1.1, 0.085, 0.10, 'sine', 0.048);
+        if (seed >= 8) tone(base * 1.38, base * 1.5, 0.17, 0.12, 'triangle', 0.04);
+      }
+    }
+
     _playRamwongStep(step) {
       if (!this.ready || TOTO.STATE.muted) return;
       const t = this.ctx.currentTime;
@@ -301,7 +370,7 @@
         drum.type = 'sine';
         drum.frequency.setValueAtTime(isDownBeat ? 155 : 210, t);
         drum.frequency.exponentialRampToValueAtTime(isDownBeat ? 58 : 95, t + 0.13);
-        dg.gain.setValueAtTime(isDownBeat ? 0.08 : 0.05, t);
+        dg.gain.setValueAtTime(isDownBeat ? 0.055 : 0.035, t);
         dg.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
         drum.connect(dg);
         dg.connect(this.ctx.destination);
@@ -315,7 +384,7 @@
         const cg = this.ctx.createGain();
         ching.type = 'sine';
         ching.frequency.setValueAtTime(step % 4 === 0 ? 3150 : 2400, t);
-        cg.gain.setValueAtTime(0.022, t);
+        cg.gain.setValueAtTime(0.015, t);
         cg.gain.exponentialRampToValueAtTime(0.0005, t + (step % 4 === 0 ? 0.14 : 0.05));
         ching.connect(cg);
         cg.connect(this.ctx.destination);
@@ -330,7 +399,7 @@
         const rg = this.ctx.createGain();
         ranat.type = 'triangle';
         ranat.frequency.setValueAtTime(note, t);
-        rg.gain.setValueAtTime(0.038, t);
+        rg.gain.setValueAtTime(0.028, t);
         rg.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
         ranat.connect(rg);
         rg.connect(this.ctx.destination);
@@ -344,6 +413,13 @@
       const beatDuration = 60 / this.bpm; // ~0.535s per beat
       this.beatAccum += dt;
       TOTO.STATE.ramwongBeatPhase = (this.beatAccum % beatDuration) / beatDuration;
+
+      if (this.ready && this.waterGain) {
+        const wTarget = (TOTO.STATE.started && !TOTO.STATE.muted)
+          ? (0.017 + Math.sin(this.beatAccum * 0.85) * 0.005)
+          : 0.0001;
+        this.waterGain.gain.setTargetAtTime(wTarget, this.ctx.currentTime, 0.25);
+      }
 
       if (!TOTO.STATE.loyKrathongMode || !TOTO.STATE.started) return;
 

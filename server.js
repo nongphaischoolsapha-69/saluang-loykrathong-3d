@@ -11,7 +11,8 @@ const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'SAMEORIGIN',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://promptpay.io; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
 };
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -46,10 +47,11 @@ const MIME_TYPES = {
   '.md': 'text/markdown; charset=utf-8'
 };
 
-// Basic Thai & English profanity filter for public wishes, names & chat bubbles
+// Basic Thai/English profanity & spam link/gambling filter for public wishes, names & chat
 const BAD_WORDS = [
   'ควย', 'เหี้ย', 'สัตว์', 'สัส', 'เย็ด', 'หี', 'แตด', 'มึง', 'กู', 'ไอ้สัส', 'อีดอก', 'ตอแหล',
-  'fuck', 'shit', 'bitch', 'asshole', 'dick', 'pussy'
+  'fuck', 'shit', 'bitch', 'asshole', 'dick', 'pussy',
+  'สล็อต', 'บาคาร่า', 'เว็บพนัน', 'เครดิตฟรี', 'แทงบอล', 'คาสิโน', 'ufabet', 'pgslot', 'sagaming', 'line.me'
 ];
 
 const VALID_OUTFITS = new Set(['sabai', 'rajpatan', 'lanna', 'student', 'street', 'chef', 'likay', 'vip_gold']);
@@ -65,11 +67,48 @@ const VALID_EMOTES = new Set(['wai', 'wave', 'ramwong', 'jump', 'chat', 'firewor
 function sanitizeText(raw, maxLen) {
   let text = String(raw || '').replace(/[\r\n<>]/g, ' ').trim();
   if (text.length > maxLen) text = text.slice(0, maxLen);
+  text = text
+    .replace(/https?:\/\/\S+/gi, '***')
+    .replace(/www\.\S+/gi, '***')
+    .replace(/\b[a-z0-9-]+\.(com|net|org|bet|vip|cc|xyz|th|me|io|gg|ly|shop|club)\b\S*/gi, '***')
+    .replace(/@[a-z0-9_.-]{3,}/gi, '***');
   for (const w of BAD_WORDS) {
-    const re = new RegExp(w, 'gi');
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(escaped, 'gi');
     text = text.replace(re, '***');
   }
   return text;
+}
+
+const bannedIps = new Map();
+const blessedByIp = new Map();
+
+function pruneSecurityMaps() {
+  const now = Date.now();
+  for (const [ip, info] of bannedIps.entries()) {
+    if (!info || now >= info.expiresAt) bannedIps.delete(ip);
+  }
+  const blessCutoff = now - 24 * 60 * 60 * 1000;
+  for (const [key, ts] of blessedByIp.entries()) {
+    if (ts < blessCutoff) blessedByIp.delete(key);
+  }
+}
+
+function getBannedIpInfo(req) {
+  pruneSecurityMaps();
+  return bannedIps.get(getClientIp(req)) || null;
+}
+
+function isSameOriginAllowed(req) {
+  const origin = String(req.headers.origin || '').trim();
+  if (!origin) return true;
+  try {
+    const originHost = new URL(origin).host.toLowerCase();
+    const expectedHost = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim().toLowerCase();
+    return Boolean(expectedHost) && originHost === expectedHost;
+  } catch (_) {
+    return false;
+  }
 }
 
 function sanitizeId(raw) {
@@ -231,14 +270,12 @@ function readJsonBody(req, maxBytes = 4096) {
   });
 }
 
-function sendJson(res, status, obj, allowCors = true) {
-  const headers = {
+function sendJson(res, status, obj) {
+  res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     ...SECURITY_HEADERS
-  };
-  if (allowCors) headers['Access-Control-Allow-Origin'] = '*';
-  res.writeHead(status, headers);
+  });
   res.end(JSON.stringify(obj));
 }
 
@@ -289,12 +326,12 @@ function pruneInactivePlayers() {
   return removed;
 }
 
-function getPlayersSnapshot() {
+function getPlayersSnapshot(includeIp = false) {
   pruneInactivePlayers();
   const now = Date.now();
   const list = [];
   for (const p of activePlayers.values()) {
-    list.push({
+    const snap = {
       id: p.id,
       name: p.name,
       outfit: p.outfit,
@@ -317,7 +354,9 @@ function getPlayersSnapshot() {
       emoteSeq: p.emoteSeq || 0,
       chat: p.chatUntil > now ? p.chat : '',
       chatSeq: p.chatSeq || 0
-    });
+    };
+    if (includeIp) snap.ip = p.ip || '';
+    list.push(snap);
     if (list.length >= 64) break;
   }
   return list;
@@ -385,6 +424,10 @@ setInterval(() => {
 const server = http.createServer(async (req, res) => {
   const urlPath = (req.url || '/').split('?')[0];
 
+  if (req.headers.origin && !isSameOriginAllowed(req)) {
+    return sendJson(res, 403, { ok: false, error: 'Cross-origin request blocked' });
+  }
+
   if (req.method === 'OPTIONS') {
     const isAdminOpt = urlPath.startsWith('/api/admin');
     const optHeaders = {
@@ -392,7 +435,10 @@ const server = http.createServer(async (req, res) => {
       'Access-Control-Allow-Headers': 'Content-Type, x-admin-key',
       ...SECURITY_HEADERS
     };
-    if (!isAdminOpt) optHeaders['Access-Control-Allow-Origin'] = '*';
+    if (!isAdminOpt && req.headers.origin && isSameOriginAllowed(req)) {
+      optHeaders['Access-Control-Allow-Origin'] = req.headers.origin;
+      optHeaders['Vary'] = 'Origin';
+    }
     res.writeHead(204, optHeaders);
     return res.end();
   }
@@ -410,6 +456,9 @@ const server = http.createServer(async (req, res) => {
 
   // Real-time Server-Sent Events (SSE) stream for multiplayer & live pond
   if (urlPath === '/api/live' && req.method === 'GET') {
+    if (getBannedIpInfo(req)) {
+      return sendJson(res, 403, { ok: false, error: 'IP นี้ถูกระงับการใช้งานชั่วคราว' });
+    }
     if (sseClients.size >= MAX_SSE_CLIENTS) {
       return sendJson(res, 503, { ok: false, error: 'ขณะนี้มีผู้เข้าชมเต็มความจุชั่วคราว กรุณาลองใหม่ในอีกสักครู่' });
     }
@@ -419,7 +468,6 @@ const server = http.createServer(async (req, res) => {
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
-      'Access-Control-Allow-Origin': '*',
       ...SECURITY_HEADERS
     });
 
@@ -446,6 +494,9 @@ const server = http.createServer(async (req, res) => {
 
   // Player Presence & 3D Avatar V2 State Upsert
   if (urlPath === '/api/presence' && req.method === 'POST') {
+    if (getBannedIpInfo(req)) {
+      return sendJson(res, 403, { ok: false, error: 'IP นี้ถูกระงับการใช้งานชั่วคราว' });
+    }
     if (!checkRateLimit(req, 'presence', 240, 10000)) {
       return sendJson(res, 429, { ok: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' });
     }
@@ -470,6 +521,7 @@ const server = http.createServer(async (req, res) => {
 
       const entry = {
         id,
+        ip: getClientIp(req),
         name: sanitizeText(data.name, 20) || 'นักท่องเที่ยว',
         outfit,
         color: sanitizeHex(data.color, '#d97724'),
@@ -510,6 +562,9 @@ const server = http.createServer(async (req, res) => {
 
   // Player Emotes, Quick Greetings & Shared Fireworks
   if (urlPath === '/api/emote' && req.method === 'POST') {
+    if (getBannedIpInfo(req)) {
+      return sendJson(res, 403, { ok: false, error: 'IP นี้ถูกระงับการใช้งานชั่วคราว' });
+    }
     try {
       const data = await readJsonBody(req, 2048);
       const id = sanitizeId(data.id);
@@ -563,7 +618,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Sponsor Billboard / Contact / Coupon Analytics Tracking
+  // Sponsor Billboard / Contact / Keepsake Analytics Tracking
   if (urlPath === '/api/track' && req.method === 'POST') {
     if (!checkRateLimit(req, 'track', 40, 60000)) {
       return sendJson(res, 429, { ok: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' });
@@ -618,6 +673,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (urlPath === '/api/krathongs/bless' && req.method === 'POST') {
+    if (getBannedIpInfo(req)) {
+      return sendJson(res, 403, { ok: false, error: 'IP นี้ถูกระงับการใช้งานชั่วคราว' });
+    }
     if (!checkRateLimit(req, 'bless', 25, 60000)) {
       return sendJson(res, 429, { ok: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' });
     }
@@ -632,6 +690,11 @@ const server = http.createServer(async (req, res) => {
       if (!found) {
         return sendJson(res, 404, { ok: false, error: 'Krathong not found' });
       }
+      const blessKey = `${getClientIp(req)}|${targetId}`;
+      if (blessedByIp.has(blessKey)) {
+        return sendJson(res, 409, { ok: false, alreadyBlessed: true, blessings: found.blessings || 0, error: 'คุณร่วมอวยพรกระทงนี้ไปแล้ว' });
+      }
+      blessedByIp.set(blessKey, Date.now());
       found.blessings = (Number(found.blessings) || 0) + 1;
       writeKrathongs(list);
       statsCache.totalBlessings++;
@@ -644,6 +707,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (urlPath === '/api/krathongs' && req.method === 'POST') {
+    if (getBannedIpInfo(req)) {
+      return sendJson(res, 403, { ok: false, error: 'IP นี้ถูกระงับการใช้งานชั่วคราว' });
+    }
     if (!checkRateLimit(req, 'krathong', 6, 60000)) {
       return sendJson(res, 429, { ok: false, error: 'ลอยกระทงถี่เกินไป กรุณารอสักครู่' });
     }
@@ -702,14 +768,16 @@ const server = http.createServer(async (req, res) => {
   // Secret Admin Console Endpoints (CORS disabled + Brute-force guarded)
   if (urlPath === '/api/admin/overview' && req.method === 'GET') {
     if (!guardAdminAuth(req, res)) return;
+    pruneSecurityMaps();
     const list = readKrathongs();
     return sendJson(res, 200, {
       ok: true,
       stats: statsCache,
       onlineCount: activePlayers.size,
-      players: getPlayersSnapshot(),
+      players: getPlayersSnapshot(true),
+      bannedIps: [...bannedIps.values()],
       krathongs: list
-    }, false);
+    });
   }
 
   if (urlPath === '/api/admin/krathongs/delete' && req.method === 'POST') {
@@ -717,17 +785,17 @@ const server = http.createServer(async (req, res) => {
     try {
       const data = await readJsonBody(req, 1024);
       const targetId = String(data.id || '').trim();
-      if (!targetId) return sendJson(res, 400, { ok: false, error: 'Missing id' }, false);
+      if (!targetId) return sendJson(res, 400, { ok: false, error: 'Missing id' });
       const list = readKrathongs();
       const filtered = list.filter(k => k.id !== targetId);
       if (filtered.length === list.length) {
-        return sendJson(res, 404, { ok: false, error: 'Krathong not found' }, false);
+        return sendJson(res, 404, { ok: false, error: 'Krathong not found' });
       }
       writeKrathongs(filtered);
       broadcastSSE('krathong_delete', { id: targetId });
-      return sendJson(res, 200, { ok: true, id: targetId }, false);
+      return sendJson(res, 200, { ok: true, id: targetId });
     } catch (err) {
-      return sendJson(res, 400, { ok: false, error: err.message }, false);
+      return sendJson(res, 400, { ok: false, error: err.message });
     }
   }
 
@@ -739,9 +807,48 @@ const server = http.createServer(async (req, res) => {
       if (targetId && activePlayers.delete(targetId)) {
         schedulePlayersBroadcast(true);
       }
-      return sendJson(res, 200, { ok: true, id: targetId }, false);
+      return sendJson(res, 200, { ok: true, id: targetId });
     } catch (err) {
-      return sendJson(res, 400, { ok: false, error: err.message }, false);
+      return sendJson(res, 400, { ok: false, error: err.message });
+    }
+  }
+
+  if (urlPath === '/api/admin/ban' && req.method === 'POST') {
+    if (!guardAdminAuth(req, res)) return;
+    try {
+      const data = await readJsonBody(req, 1024);
+      const targetId = sanitizeId(data.id);
+      const player = targetId ? activePlayers.get(targetId) : null;
+      const targetIp = String(data.ip || (player && player.ip) || '').trim().slice(0, 64);
+      if (!targetIp) return sendJson(res, 400, { ok: false, error: 'Missing ip' });
+      const mins = Math.max(1, Math.min(1440, Number(data.minutes) || 60));
+      const now = Date.now();
+      bannedIps.set(targetIp, {
+        ip: targetIp,
+        name: (player && player.name) || sanitizeText(data.name, 20) || 'Banned IP',
+        reason: sanitizeText(data.reason, 40) || 'Admin temporary ban',
+        bannedAt: now,
+        expiresAt: now + mins * 60 * 1000
+      });
+      if (targetId && activePlayers.delete(targetId)) {
+        schedulePlayersBroadcast(true);
+      }
+      return sendJson(res, 200, { ok: true, ip: targetIp, minutes: mins });
+    } catch (err) {
+      return sendJson(res, 400, { ok: false, error: err.message });
+    }
+  }
+
+  if (urlPath === '/api/admin/unban' && req.method === 'POST') {
+    if (!guardAdminAuth(req, res)) return;
+    try {
+      const data = await readJsonBody(req, 1024);
+      const targetIp = String(data.ip || '').trim().slice(0, 64);
+      if (!targetIp) return sendJson(res, 400, { ok: false, error: 'Missing ip' });
+      const removed = bannedIps.delete(targetIp);
+      return sendJson(res, 200, { ok: true, ip: targetIp, removed });
+    } catch (err) {
+      return sendJson(res, 400, { ok: false, error: err.message });
     }
   }
 

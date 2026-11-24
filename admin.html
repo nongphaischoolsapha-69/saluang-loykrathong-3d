@@ -109,9 +109,23 @@
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>ชื่อ</th><th>ชุด &amp; ของตกแต่ง</th><th>ตำแหน่ง</th><th>Action</th></tr>
+              <tr><th>ชื่อ / IP</th><th>ชุด &amp; ของตกแต่ง</th><th>ตำแหน่ง</th><th>Action</th></tr>
             </thead>
             <tbody id="players-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>🚫 IP ที่ถูกแบนชั่วคราว (<span id="banned-list-count">0</span>)</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>IP</th><th>หมายเหตุ</th><th>หมดอายุ</th><th>Action</th></tr>
+            </thead>
+            <tbody id="banned-tbody"></tbody>
           </table>
         </div>
       </div>
@@ -202,12 +216,26 @@
       document.getElementById('online-list-count').textContent = players.length;
       document.getElementById('players-tbody').innerHTML = players.map(p => `
         <tr>
-          <td><b>${esc(p.name)}</b><br><span class="sub">${esc(p.id)}</span></td>
+          <td><b>${esc(p.name)}</b><br><span class="sub">${esc(p.id)} • ${esc(p.ip || '-')}</span></td>
           <td>${esc(p.outfit)} | หมวก: ${esc(p.hat || 'none')} | ปีก/หลัง: ${esc(p.back || 'none')} | ออร่า: ${esc(p.aura || 'none')}</td>
           <td>(${Number(p.x).toFixed(1)}, ${Number(p.z).toFixed(1)})</td>
-          <td><button class="btn-danger" onclick="kickPlayer('${esc(p.id)}')">เตะออก</button></td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn-outline" style="padding:5px 10px;font-size:12px;" onclick="kickPlayer('${esc(p.id)}')">เตะออก</button>
+            <button class="btn-danger" onclick="banIp('${esc(p.id)}', '${esc(p.ip || '')}')">แบน IP (1 ชม.)</button>
+          </td>
         </tr>
       `).join('') || '<tr><td colspan="4" class="sub">ยังไม่มีผู้เล่นออนไลน์</td></tr>';
+
+      const banned = d.bannedIps || [];
+      document.getElementById('banned-list-count').textContent = banned.length;
+      document.getElementById('banned-tbody').innerHTML = banned.map(b => `
+        <tr>
+          <td><b>${esc(b.ip)}</b></td>
+          <td>${esc(b.name || b.reason || '-')}</td>
+          <td>${new Date(b.expiresAt).toLocaleTimeString('th-TH')}</td>
+          <td><button class="btn-outline" style="padding:5px 12px;font-size:12px;" onclick="unbanIp('${esc(b.ip)}')">ปลดแบน</button></td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" class="sub">ยังไม่มี IP ที่ถูกแบน</td></tr>';
 
       renderKrathongsTable();
     }
@@ -223,7 +251,7 @@
         <tr>
           <td><b>${esc(k.name)}</b></td>
           <td>${esc(k.wish)}</td>
-          <td><span class="pill">${k.isVip ? 'VIP ทองคำ' : esc(k.baseId || k.typeId)}</span></td>
+          <td><span class="pill">${k.isVip ? 'ทองคำพิเศษ' : esc(k.baseId || k.typeId)}</span></td>
           <td>♡ ${k.blessings || 0}</td>
           <td><button class="btn-danger" onclick="deleteKrathong('${esc(k.id)}')">ลบกระทง</button></td>
         </tr>
@@ -250,6 +278,31 @@
       });
       if (res.ok) {
         showToast('นำผู้เล่นออกจากห้องเรียบร้อย');
+        loadOverview();
+      }
+    };
+
+    window.banIp = async (id, ip) => {
+      if (!ip) return showToast('ไม่พบ IP ของผู้เล่นนี้');
+      const res = await fetch('/api/admin/ban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ id, ip, minutes: 60 })
+      });
+      if (res.ok) {
+        showToast(`แบน IP ${ip} เป็นเวลา 60 นาทีแล้ว`);
+        loadOverview();
+      }
+    };
+
+    window.unbanIp = async (ip) => {
+      const res = await fetch('/api/admin/unban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ ip })
+      });
+      if (res.ok) {
+        showToast(`ปลดแบน IP ${ip} เรียบร้อยแล้ว`);
         loadOverview();
       }
     };

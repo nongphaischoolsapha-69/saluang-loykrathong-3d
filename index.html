@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>ลอยกระทง สระหลวง หนองไผ่ • 3D</title>
-  <meta name="description" content="แต่งตัว 3D ออนไลน์ เดินชมสวนสาธารณะสระหลวง อ.หนองไผ่ จ.เพชรบูรณ์ ลอยกระทง อวยพร จุดพลุ และแวะร้านหอยทอดโตโต้">
+  <meta name="description" content="แต่งตัว 3D ออนไลน์ เดินชมสวนสาธารณะสระหลวง อ.หนองไผ่ จ.เพชรบูรณ์ ลอยกระทง อวยพร จุดพลุ และแวะร้านเจ๊แพรรี่ หอยทอด ผัดไทย">
   <meta name="theme-color" content="#070e1c">
   <meta property="og:title" content="ลอยกระทงออนไลน์ สระหลวง หนองไผ่ • 3D">
   <meta property="og:description" content="แต่งชุดไทย/แฟนตาซี 3D เดินเล่นริมสระหลวง ลอยกระทงเขียนคำอธิษฐานพร้อมเพื่อนแบบเรียลไทม์">
@@ -42,7 +42,7 @@
         <h1 class="start-title">ลอยกระทง สระหลวง 3D ออนไลน์</h1>
         <p class="start-sub">
           ประดิษฐ์กระทง เขียนคำอธิษฐาน ปล่อยลงสระหลวงจำลองมาตราส่วนจริงแบบเรียลไทม์
-          พร้อมแวะร้านหอยทอด โตโต้ ณ ซอยสระหลวงใต้
+          พร้อมแวะร้านเจ๊แพรรี่ หอยทอด ผัดไทย ณ ซอยสระหลวงใต้
         </p>
         <div class="start-actions">
           <button class="btn-primary-gold" id="btn-start-loy">เข้าสู่งานลอยกระทง</button>
@@ -103,7 +103,7 @@
 
       <!-- CONTEXTUAL STALL BAR (VISIBLE ONLY WHEN NEAR TOTO'S STALL) -->
       <div id="toto-stall-bar" style="display:none;">
-        <div class="stall-bar-title">ร้านหอยทอด โตโต้ • ซอยสระหลวงใต้</div>
+        <div class="stall-bar-title">เจ๊แพรรี่ หอยทอด ผัดไทย • ซอยสระหลวงใต้</div>
         <div class="stall-bar-actions">
           <button class="btn-outline-gold" id="btn-open-cook">ลองผัดหอยทอด 1 กระทะ</button>
         </div>
@@ -124,7 +124,7 @@
       <div id="cook-panel" style="display:none;">
         <div id="recipe-select-box">
           <div class="cook-head">
-            <span>กระทะหอยทอด โตโต้ — เลือกเมนูเพื่อผัด</span>
+            <span>กระทะเจ๊แพรรี่ — เลือกเมนูเพื่อผัด</span>
             <button class="btn-text-subtle" id="btn-close-cook">ปิด</button>
           </div>
           <div class="recipe-grid" id="recipe-grid"></div>
@@ -155,6 +155,7 @@
           <button class="btn-outline-gold emote-pose-btn" data-emote="ramwong">💃 รำวงวันเพ็ญ</button>
           <button class="btn-outline-ivory emote-pose-btn" data-emote="jump">🎉 กระโดดดีใจ</button>
         </div>
+        <button type="button" class="btn-outline-gold emote-seamsi-btn" id="btn-open-seamsi">🔮 เสี่ยงเซียมซีวันลอยกระทง</button>
         <div class="emote-quick-list" id="emote-quick-list"></div>
         <div class="emote-chat-row">
           <input type="text" id="emote-chat-input" class="k-input" maxlength="50" placeholder="พิมพ์ข้อความสั้นๆ เหนือหัว...">
@@ -165,10 +166,10 @@
       <div id="main-dock">
         <button class="btn-primary-gold dock-main-cta" id="btn-open-krathong">ประดิษฐ์และลอยกระทง</button>
         <div class="dock-sub-row">
-          <button class="dock-sub-btn" id="btn-emotes">🙏 <span class="d-full">ทักทาย / แสดงท่า</span><span class="m-short">ทักทาย</span></button>
+          <button class="dock-sub-btn" id="btn-emotes">🙏 <span class="d-full">ทักทาย / เซียมซี</span><span class="m-short">ทักทาย</span></button>
           <button class="dock-sub-btn" id="btn-firework">🎆 <span class="d-full">จุดพลุ / ปล่อยโคม</span><span class="m-short">พลุ/โคม</span></button>
-          <button class="dock-sub-btn" id="btn-visit-toto">🦪 <span class="d-full">แวะร้านหอยทอด โตโต้</span><span class="m-short">ร้านโตโต้</span></button>
-          <button class="dock-sub-btn" id="btn-donate-top">👑 <span class="d-full">สนับสนุน / VIP</span><span class="m-short">VIP</span></button>
+          <button class="dock-sub-btn" id="btn-visit-toto">🦪 <span class="d-full">เจ๊แพรรี่ หอยทอด ผัดไทย</span><span class="m-short">เจ๊แพรรี่</span></button>
+          <button class="dock-sub-btn" id="btn-donate-top">💛 <span class="d-full">สนับสนุนเว็บ</span><span class="m-short">สนับสนุน</span></button>
         </div>
       </div>
 
@@ -179,6 +180,12 @@
       <!-- TOUCH-ONLY JOYSTICK -->
       <div id="joystick-zone">
         <div class="joy-ring"><div class="joy-knob" id="joystick-knob"></div></div>
+      </div>
+
+      <!-- TOUCH-ONLY COMPACT CAMERA TURN PAD -->
+      <div id="mobile-cam-pad" aria-label="หมุนมุมกล้อง">
+        <button type="button" class="cam-turn-btn" id="btn-cam-left" title="หันซ้าย">↺</button>
+        <button type="button" class="cam-turn-btn" id="btn-cam-right" title="หันขวา">↻</button>
       </div>
     </div>
 
@@ -285,7 +292,7 @@
 
         <div class="k-section-head">
           <span>1. เลือกฐานกระทง</span>
-          <button type="button" class="btn-link-gold" id="btn-open-donate-from-k">ปลดล็อกกระทงทองคำ VIP</button>
+          <button type="button" class="btn-link-gold" id="btn-open-donate-from-k">ปลดล็อกกระทงทองคำพิเศษ</button>
         </div>
         <div class="choice-grid" id="krathong-base-grid"></div>
 
@@ -301,18 +308,18 @@
       </div>
     </div>
 
-    <!-- PROMPTPAY DONATE & VIP MODAL -->
+    <!-- PROMPTPAY SUPPORT MODAL -->
     <div class="modal-backdrop" id="donate-modal" style="display:none;">
       <div class="editorial-modal donate-box">
         <div class="modal-head">
           <div>
-            <p class="modal-eyebrow">สนับสนุนผู้พัฒนา & ร้านหอยทอด โตโต้</p>
-            <h2>ปลดล็อกกระทงทองคำ VIP</h2>
+            <p class="modal-eyebrow">สนับสนุนผู้พัฒนา &amp; เจ๊แพรรี่ หอยทอด ผัดไทย</p>
+            <h2>ร่วมสนับสนุนผู้พัฒนา</h2>
           </div>
           <button class="modal-close-btn" id="btn-close-donate">✕</button>
         </div>
         <p class="modal-desc">
-          ร่วมทิปสนับสนุนตามศรัทธา ดูแลเซิร์ฟเวอร์งานลอยกระทงสระหลวง เพื่อปลดล็อกกระทงทองคำ ชุด/ชฎา/ปีก VIP และพลุเฉลิมฉลอง
+          ร่วมทิปสนับสนุนตามศรัทธา ดูแลเซิร์ฟเวอร์งานลอยกระทงสระหลวง เพื่อปลดล็อกกระทงทองคำพิเศษ ชุด/ชฎา/ปีกทองคำพิเศษ และพลุเฉลิมฉลอง
         </p>
 
         <div id="donate-amt-section">
@@ -336,7 +343,7 @@
         </div>
 
         <button class="btn-primary-gold" id="btn-confirm-donate" style="width:100%;margin-top:12px;">
-          โอนแล้ว • ปลดล็อกกระทงทองคำ VIP
+          โอนแล้ว • ปลดล็อกของขวัญทองคำ ✨
         </button>
       </div>
     </div>
@@ -353,17 +360,47 @@
           <div class="ks-badge" id="sc-krathong-badge">กระทงใบตอง • ดอกบัวชมพู</div>
           <div class="ks-name" id="sc-name">คุณ ...</div>
           <div class="ks-wish" id="sc-wish">"..."</div>
+          <div class="ks-fortune" id="sc-fortune-line" style="display:none;"></div>
           <div class="ks-divider"></div>
           <div class="ks-shop-info">
-            <div class="ks-cp-title" id="sc-shop-title">ร้านหอยทอด โตโต้ • สระหลวง หนองไผ่</div>
+            <div class="ks-cp-title" id="sc-shop-title">เจ๊แพรรี่ หอยทอด ผัดไทย • สระหลวง หนองไผ่</div>
             <div class="ks-cp-offer" id="sc-shop-sub">แวะชิมหอยทอดกรอบ ออส่วน ผัดไทยร้อนๆ ได้ที่หน้าร้านจริง</div>
             <div class="ks-cp-addr" id="sc-shop-address">ซอยสระหลวงใต้ (ซอยเทศบาล 34) หน้าร้านตึกชมพู สระหลวง อ.หนองไผ่</div>
           </div>
         </div>
         <div class="share-actions">
           <button class="btn-primary-gold" id="btn-download-card">บันทึกรูปการ์ด PNG</button>
-          <button class="btn-outline-ivory" id="btn-share-copy">คัดลอกข้อความ</button>
+          <button class="btn-outline-gold" id="btn-share-seamsi">🔮 เสี่ยงเซียมซี</button>
+          <button class="btn-outline-ivory" id="btn-share-copy">คัดลอก</button>
         </div>
+      </div>
+    </div>
+
+    <!-- SEAM-SI FORTUNE MODAL -->
+    <div class="modal-backdrop" id="seamsi-modal" style="display:none;">
+      <div class="editorial-modal seamsi-box">
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow">คืนเพ็ญเดือนสิบสอง • สระหลวง หนองไผ่</p>
+            <h2>🔮 เสี่ยงเซียมซีวันลอยกระทง</h2>
+          </div>
+          <button class="modal-close-btn" id="btn-close-seamsi">✕</button>
+        </div>
+        <div class="seamsi-stage">
+          <div class="seamsi-cup" id="seamsi-cup">🎋</div>
+          <div class="seamsi-hint" id="seamsi-hint">ตั้งจิตอธิษฐาน แล้วกดปุ่มเขย่าติ้วเซียมซีด้านล่าง</div>
+        </div>
+        <div class="seamsi-result-card" id="seamsi-result" style="display:none;">
+          <div class="ss-head">
+            <span class="ss-stick" id="ss-stick-num">ใบที่ 9</span>
+            <span class="ss-level" id="ss-level">เฮงสุดขีด</span>
+          </div>
+          <div class="ss-title" id="ss-title">-</div>
+          <div class="ss-text" id="ss-text">-</div>
+        </div>
+        <button class="btn-primary-gold" id="btn-shake-seamsi" style="width:100%;margin-top:12px;">
+          🎋 เขย่าติ้วเซียมซี
+        </button>
       </div>
     </div>
 
