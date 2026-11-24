@@ -63,6 +63,34 @@ const VALID_BACKS = new Set(['none', 'angel_wings', 'butterfly_wings', 'cape', '
 const VALID_AURAS = new Set(['none', 'fireflies', 'mini_lantern', 'krathong_spirit', 'lotus_ring']);
 const VALID_PROPS = new Set(['none', 'lantern', 'flower', 'fan', 'cotton_candy', 'sparkler']);
 const VALID_EMOTES = new Set(['wai', 'wave', 'ramwong', 'jump', 'chat', 'firework']);
+const VALID_FLOWERS = new Set(['lotus', 'marigold', 'orchid', 'globe']);
+const VALID_CANDLES = new Set(['gold', 'pink', 'red', 'white']);
+const VALID_TOPPINGS = new Set(['coin', 'swan', 'garland', 'lotus_bud', 'sparkler']);
+const KRATHONG_QUOTA_MAX = 3;
+const KRATHONG_QUOTA_WINDOW_MS = 60 * 60 * 1000;
+const deviceKrathongBuckets = new Map();
+
+function getDeviceQuotaStatus(quotaKey) {
+  const now = Date.now();
+  const cutoff = now - KRATHONG_QUOTA_WINDOW_MS;
+  const arr = (deviceKrathongBuckets.get(quotaKey) || []).filter(ts => ts > cutoff);
+  if (arr.length > 0) deviceKrathongBuckets.set(quotaKey, arr);
+  else deviceKrathongBuckets.delete(quotaKey);
+  const used = arr.length;
+  const remaining = Math.max(0, KRATHONG_QUOTA_MAX - used);
+  const retryAfterSec = remaining === 0 && arr.length > 0
+    ? Math.max(1, Math.ceil((arr[0] + KRATHONG_QUOTA_WINDOW_MS - now) / 1000))
+    : 0;
+  return { used, limit: KRATHONG_QUOTA_MAX, remaining, retryAfterSec };
+}
+
+function recordDeviceKrathong(quotaKey) {
+  const now = Date.now();
+  const cutoff = now - KRATHONG_QUOTA_WINDOW_MS;
+  const arr = (deviceKrathongBuckets.get(quotaKey) || []).filter(ts => ts > cutoff);
+  arr.push(now);
+  deviceKrathongBuckets.set(quotaKey, arr);
+}
 
 function sanitizeText(raw, maxLen) {
   let text = String(raw || '').replace(/[\r\n<>]/g, ' ').trim();
@@ -91,6 +119,12 @@ function pruneSecurityMaps() {
   const blessCutoff = now - 24 * 60 * 60 * 1000;
   for (const [key, ts] of blessedByIp.entries()) {
     if (ts < blessCutoff) blessedByIp.delete(key);
+  }
+  const quotaCutoff = now - KRATHONG_QUOTA_WINDOW_MS;
+  for (const [key, arr] of deviceKrathongBuckets.entries()) {
+    const fresh = (arr || []).filter(ts => ts > quotaCutoff);
+    if (fresh.length > 0) deviceKrathongBuckets.set(key, fresh);
+    else deviceKrathongBuckets.delete(key);
   }
 }
 
@@ -706,23 +740,51 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (urlPath === '/api/krathongs/quota' && req.method === 'GET') {
+    if (getBannedIpInfo(req)) {
+      return sendJson(res, 403, { ok: false, error: 'IP นี้ถูกระงับการใช้งานชั่วคราว' });
+    }
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const deviceId = sanitizeId(parsedUrl.searchParams.get('deviceId'));
+      const quotaKey = deviceId ? `dev:${deviceId}` : `ip:${getClientIp(req)}`;
+      return sendJson(res, 200, { ok: true, ...getDeviceQuotaStatus(quotaKey) });
+    } catch (_) {
+      return sendJson(res, 200, { ok: true, used: 0, limit: KRATHONG_QUOTA_MAX, remaining: KRATHONG_QUOTA_MAX, retryAfterSec: 0 });
+    }
+  }
+
   if (urlPath === '/api/krathongs' && req.method === 'POST') {
     if (getBannedIpInfo(req)) {
       return sendJson(res, 403, { ok: false, error: 'IP นี้ถูกระงับการใช้งานชั่วคราว' });
     }
-    if (!checkRateLimit(req, 'krathong', 6, 60000)) {
-      return sendJson(res, 429, { ok: false, error: 'ลอยกระทงถี่เกินไป กรุณารอสักครู่' });
+    if (!checkRateLimit(req, 'krathong_ip', 15, 600000)) {
+      return sendJson(res, 429, { ok: false, error: 'มีการส่งคำขอลอยกระทงจากเครือข่ายนี้มากเกินไป กรุณารอสักครู่' });
     }
     try {
       const data = await readJsonBody(req, 4096);
+      const deviceId = sanitizeId(data.deviceId);
+      const quotaKey = deviceId ? `dev:${deviceId}` : `ip:${getClientIp(req)}`;
+      const qStatus = getDeviceQuotaStatus(quotaKey);
+      if (qStatus.remaining <= 0) {
+        const waitMin = Math.max(1, Math.ceil(qStatus.retryAfterSec / 60));
+        return sendJson(res, 429, {
+          ok: false,
+          quotaExceeded: true,
+          quota: qStatus,
+          error: `คุณลอยกระทงครบ ${KRATHONG_QUOTA_MAX} ใบต่อชั่วโมงแล้ว รออีก ${waitMin} นาทีนะ ✨`
+        });
+      }
+
       const name = sanitizeText(data.name, 24) || 'ชาวหนองไผ่';
       const wish = sanitizeText(data.wish, 70) || 'ขอให้มีความสุข สุขภาพแข็งแรง ตลอดปี';
       const isVip = Boolean(data.isVip);
       const validBases = ['banana', 'coconut', 'bread', 'gold'];
-      const validFlowers = ['lotus', 'marigold', 'orchid'];
       let baseId = validBases.includes(data.baseId) ? data.baseId : 'banana';
       if (isVip) baseId = 'gold';
-      const flowerId = validFlowers.includes(data.flowerId) ? data.flowerId : 'lotus';
+      const flowerId = VALID_FLOWERS.has(data.flowerId) ? data.flowerId : 'lotus';
+      const candleId = VALID_CANDLES.has(data.candleId) ? data.candleId : 'gold';
+      const toppingId = VALID_TOPPINGS.has(data.toppingId) ? data.toppingId : 'coin';
       const typeId = ['lotus', 'marigold', 'toto'].includes(data.typeId) ? data.typeId : flowerId;
 
       let px = Number((Math.random() * 76 - 30).toFixed(2));
@@ -738,6 +800,8 @@ const server = http.createServer(async (req, res) => {
         wish,
         baseId,
         flowerId,
+        candleId,
+        toppingId,
         typeId: isVip ? 'toto' : typeId,
         isVip,
         blessings: 0,
@@ -749,6 +813,8 @@ const server = http.createServer(async (req, res) => {
       const list = readKrathongs();
       list.push(newItem);
       writeKrathongs(list);
+      recordDeviceKrathong(quotaKey);
+      const updatedQuota = getDeviceQuotaStatus(quotaKey);
       statsCache.totalKrathongsAllTime = Math.max(statsCache.totalKrathongsAllTime + 1, list.length);
       saveStats(true);
 
@@ -759,7 +825,7 @@ const server = http.createServer(async (req, res) => {
         stats: { totalVisits: statsCache.totalVisits, totalKrathongsAllTime: allTimeTotal }
       });
 
-      return sendJson(res, 201, { ok: true, total: allTimeTotal, krathong: newItem });
+      return sendJson(res, 201, { ok: true, total: allTimeTotal, krathong: newItem, quota: updatedQuota });
     } catch (err) {
       return sendJson(res, 400, { ok: false, error: err.message });
     }

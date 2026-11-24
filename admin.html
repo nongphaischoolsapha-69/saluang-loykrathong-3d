@@ -247,15 +247,23 @@
         !q || (k.name || '').toLowerCase().includes(q) || (k.wish || '').toLowerCase().includes(q)
       );
       document.getElementById('k-list-count').textContent = list.length;
-      document.getElementById('krathongs-tbody').innerHTML = list.map(k => `
+      document.getElementById('krathongs-tbody').innerHTML = list.map(k => {
+        const craftParts = [
+          k.isVip ? 'ทองคำพิเศษ' : (k.baseId || k.typeId || 'banana'),
+          k.flowerId || '',
+          k.candleId ? `เทียน:${k.candleId}` : '',
+          k.toppingId ? `ท็อปปิ้ง:${k.toppingId}` : ''
+        ].filter(Boolean).join(' • ');
+        return `
         <tr>
           <td><b>${esc(k.name)}</b></td>
           <td>${esc(k.wish)}</td>
-          <td><span class="pill">${k.isVip ? 'ทองคำพิเศษ' : esc(k.baseId || k.typeId)}</span></td>
+          <td><span class="pill">${esc(craftParts)}</span></td>
           <td>♡ ${k.blessings || 0}</td>
           <td><button class="btn-danger" onclick="deleteKrathong('${esc(k.id)}')">ลบกระทง</button></td>
         </tr>
-      `).join('') || '<tr><td colspan="5" class="sub">ไม่พบกระทงที่ตรงเงื่อนไข</td></tr>';
+      `;
+      }).join('') || '<tr><td colspan="5" class="sub">ยังไม่มีกระทงในสระ</td></tr>';
     }
 
     window.deleteKrathong = async (id) => {

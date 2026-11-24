@@ -59,7 +59,7 @@
           <span class="loc-name">สระหลวง • หนองไผ่</span>
           <span class="loc-divider"></span>
           <button type="button" class="loc-search-btn" id="btn-search-krathong" title="ค้นหากระทงในสระหลวง">
-            🪷 <span class="hide-xs">ลอยแล้ว </span><b id="ui-pond-count">3</b> 🔍
+            🪷 <span class="hide-xs">ลอยแล้ว </span><b id="ui-pond-count">0</b> 🔍
           </button>
           <span class="loc-divider"></span>
           <span class="loc-online"><span class="online-dot"></span><span class="hide-xs">ออนไลน์ </span><b id="ui-online-count">1</b></span>
@@ -106,6 +106,14 @@
         <div class="stall-bar-title">เจ๊แพรรี่ หอยทอด ผัดไทย • ซอยสระหลวงใต้</div>
         <div class="stall-bar-actions">
           <button class="btn-outline-gold" id="btn-open-cook">ลองผัดหอยทอด 1 กระทะ</button>
+        </div>
+      </div>
+
+      <!-- CONTEXTUAL LANDMARK MINI-GAME BAR -->
+      <div id="landmark-action-bar" style="display:none;">
+        <div class="stall-bar-title" id="lm-bar-title">-</div>
+        <div class="stall-bar-actions">
+          <button class="btn-outline-gold" id="btn-open-landmark-game">-</button>
         </div>
       </div>
 
@@ -156,6 +164,7 @@
           <button class="btn-outline-ivory emote-pose-btn" data-emote="jump">🎉 กระโดดดีใจ</button>
         </div>
         <button type="button" class="btn-outline-gold emote-seamsi-btn" id="btn-open-seamsi">🔮 เสี่ยงเซียมซีวันลอยกระทง</button>
+        <button type="button" class="btn-outline-ivory emote-seamsi-btn" id="btn-open-passport-emote">🗺️ พาสปอร์ตเที่ยวสระหลวง (<span id="emote-passport-count">0/4</span>)</button>
         <div class="emote-quick-list" id="emote-quick-list"></div>
         <div class="emote-chat-row">
           <input type="text" id="emote-chat-input" class="k-input" maxlength="50" placeholder="พิมพ์ข้อความสั้นๆ เหนือหัว...">
@@ -252,6 +261,7 @@
           <button class="modal-close-btn" id="btn-close-wish">✕</button>
         </div>
         <h3 class="wp-sender" id="wp-name">-</h3>
+        <div class="wp-craft-meta" id="wp-craft-meta"></div>
         <p class="wp-text" id="wp-wish">"..."</p>
         <div class="wp-footer">
           <button class="btn-primary-gold" id="btn-bless-krathong">
@@ -261,49 +271,80 @@
       </div>
     </div>
 
-    <!-- CUSTOM KRATHONG WORKSHOP MODAL -->
-    <div class="modal-backdrop" id="krathong-modal" style="display:none;">
-      <div class="editorial-modal workshop-box">
+    <!-- CUSTOM KRATHONG LIVE 3D WORKSHOP DRAWER -->
+    <div id="krathong-modal" class="dressing-backdrop" style="display:none;">
+      <div class="k-preview-hint" id="k-preview-hint">👆 ลากนิ้ว / เมาส์หมุนดูกระทง 360°</div>
+      <div class="editorial-modal dressing-drawer workshop-drawer">
         <div class="modal-head">
           <div>
             <p class="modal-eyebrow">ท่าน้ำสระหลวง • หนองไผ่</p>
-            <h2>ประดิษฐ์และลอยกระทง</h2>
+            <h2>ประดิษฐ์กระทงฝีมือคุณ</h2>
           </div>
           <button class="modal-close-btn" id="btn-close-krathong">✕</button>
         </div>
 
-        <div class="k-input-row">
-          <div>
-            <label class="k-label" for="k-input-name">ชื่อผู้ลอย (แสดงบนผิวน้ำสระหลวง)</label>
-            <input type="text" id="k-input-name" class="k-input" maxlength="24" placeholder="เช่น คุณนาย / ชาวหนองไผ่">
+        <div class="k-craft-summary" id="k-craft-summary">✨ ฝีมือคุณ: ใบตองพับกลีบ • ดอกบัวชมพู • เทียนเหลืองทอง • เหรียญมงคล</div>
+
+        <div class="k-tabs">
+          <button type="button" class="k-tab-btn active" data-ktab="craft1">1. ฐาน &amp; ดอก</button>
+          <button type="button" class="k-tab-btn" data-ktab="craft2">2. เทียน &amp; ของมงคล</button>
+          <button type="button" class="k-tab-btn" data-ktab="wish">3. ชื่อ &amp; อธิษฐาน</button>
+        </div>
+
+        <div class="k-tab-panel" id="k-panel-craft1">
+          <div class="k-section-head">
+            <span>1. เลือกฐานกระทง</span>
+            <button type="button" class="btn-link-gold" id="btn-open-donate-from-k">ปลดล็อกกระทงทองคำพิเศษ</button>
           </div>
-          <div>
-            <label class="k-label" for="k-input-wish">คำอธิษฐาน</label>
-            <input type="text" id="k-input-wish" class="k-input" maxlength="70" placeholder="เขียนคำอธิษฐานของคุณที่นี่...">
+          <div class="choice-grid" id="krathong-base-grid"></div>
+
+          <div class="k-section-head" style="margin-top:12px;">
+            <span>2. เลือกดอกไม้ประดับ</span>
+          </div>
+          <div class="choice-grid" id="krathong-flower-grid"></div>
+        </div>
+
+        <div class="k-tab-panel" id="k-panel-craft2" style="display:none;">
+          <div class="k-section-head">
+            <span>3. เลือกสีเทียนมงคล</span>
+          </div>
+          <div class="choice-grid" id="krathong-candle-grid"></div>
+
+          <div class="k-section-head" style="margin-top:12px;">
+            <span>4. วางของมงคลกลางกระทง</span>
+          </div>
+          <div class="choice-grid" id="krathong-topping-grid"></div>
+        </div>
+
+        <div class="k-tab-panel" id="k-panel-wish" style="display:none;">
+          <div class="k-input-row">
+            <div>
+              <label class="k-label" for="k-input-name">ชื่อผู้ลอย (แสดงบนผิวน้ำสระหลวง)</label>
+              <input type="text" id="k-input-name" class="k-input" maxlength="24" placeholder="เช่น คุณนาย / ชาวหนองไผ่">
+            </div>
+            <div>
+              <label class="k-label" for="k-input-wish">คำอธิษฐาน</label>
+              <input type="text" id="k-input-wish" class="k-input" maxlength="70" placeholder="เขียนคำอธิษฐานของคุณที่นี่...">
+            </div>
+          </div>
+
+          <div class="wish-presets-row">
+            <button type="button" class="wish-chip" data-wish="ขอให้การงานก้าวหน้า ค้าขายร่ำรวย เงินทองไหลมาเทมา">ค้าขายร่ำรวย</button>
+            <button type="button" class="wish-chip" data-wish="ขอให้ครอบครัวร่มเย็นเป็นสุข สุขภาพแข็งแรงตลอดปี">สุขภาพแข็งแรง</button>
+            <button type="button" class="wish-chip" data-wish="ขอให้สมหวังดังปรารถนา เจอแต่กัลยาณมิตรที่ดี">สมหวังดังใจ</button>
+            <button type="button" class="wish-chip" data-wish="ร่วมอนุรักษ์ประเพณีลอยกระทง ณ สระหลวง หนองไผ่">รักษ์สระหลวง</button>
           </div>
         </div>
-
-        <div class="wish-presets-row">
-          <button type="button" class="wish-chip" data-wish="ขอให้การงานก้าวหน้า ค้าขายร่ำรวย เงินทองไหลมาเทมา">ค้าขายร่ำรวย</button>
-          <button type="button" class="wish-chip" data-wish="ขอให้ครอบครัวร่มเย็นเป็นสุข สุขภาพแข็งแรงตลอดปี">สุขภาพแข็งแรง</button>
-          <button type="button" class="wish-chip" data-wish="ขอให้สมหวังดังปรารถนา เจอแต่กัลยาณมิตรที่ดี">สมหวังดังใจ</button>
-          <button type="button" class="wish-chip" data-wish="ร่วมอนุรักษ์ประเพณีลอยกระทง ณ สระหลวง หนองไผ่">รักษ์สระหลวง</button>
-        </div>
-
-        <div class="k-section-head">
-          <span>1. เลือกฐานกระทง</span>
-          <button type="button" class="btn-link-gold" id="btn-open-donate-from-k">ปลดล็อกกระทงทองคำพิเศษ</button>
-        </div>
-        <div class="choice-grid" id="krathong-base-grid"></div>
-
-        <div class="k-section-head" style="margin-top:12px;">
-          <span>2. เลือกดอกไม้ประดับ</span>
-        </div>
-        <div class="choice-grid" id="krathong-flower-grid"></div>
 
         <div class="workshop-footer">
-          <span class="pond-total-note">กระทงในสระขณะนี้ <b id="k-stat-pond-total">3</b> กระทง</span>
-          <button class="btn-primary-gold" id="btn-launch-krathong">วางกระทงลงสระหลวง</button>
+          <div class="workshop-meta-col">
+            <span class="pond-total-note">กระทงในสระขณะนี้ <b id="k-stat-pond-total">0</b> กระทง</span>
+            <span class="k-quota-badge" id="k-quota-badge">สิทธิ์ลอย: เหลือ 3/3 ใบ (ชม.)</span>
+          </div>
+          <div class="workshop-cta-row">
+            <button type="button" class="btn-outline-gold" id="btn-k-next-step">ถัดไป →</button>
+            <button type="button" class="btn-primary-gold" id="btn-launch-krathong">🪷 วางกระทงลงสระหลวง</button>
+          </div>
         </div>
       </div>
     </div>
@@ -361,6 +402,7 @@
           <div class="ks-name" id="sc-name">คุณ ...</div>
           <div class="ks-wish" id="sc-wish">"..."</div>
           <div class="ks-fortune" id="sc-fortune-line" style="display:none;"></div>
+          <div class="ks-passport" id="sc-passport-line" style="display:none;"></div>
           <div class="ks-divider"></div>
           <div class="ks-shop-info">
             <div class="ks-cp-title" id="sc-shop-title">เจ๊แพรรี่ หอยทอด ผัดไทย • สระหลวง หนองไผ่</div>
@@ -512,6 +554,78 @@
         </div>
         <input type="text" id="krathong-search-input" class="k-input" placeholder="พิมพ์ชื่อผู้ลอย หรือคำอธิษฐาน...">
         <div class="search-k-results" id="krathong-search-results"></div>
+      </div>
+    </div>
+
+    <!-- ZERO-LAG LANDMARK MINI-GAME MODAL -->
+    <div class="modal-backdrop" id="minigame-modal" style="display:none;">
+      <div class="editorial-modal minigame-box">
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow" id="mg-eyebrow">กิจกรรมประจำจุด • สระหลวง</p>
+            <h2 id="mg-title">-</h2>
+          </div>
+          <button class="modal-close-btn" id="btn-close-minigame">✕</button>
+        </div>
+
+        <!-- 1. Fountain Coin Toss -->
+        <div id="mg-view-coin" style="display:none;">
+          <p class="modal-desc" id="mg-coin-desc">กดให้เข็มหยุดตรงแถบสีทองตรงกลาง เพื่อโยนเหรียญลงอ่างน้ำพุกลางสระหลวง!</p>
+          <div class="mg-meter">
+            <div class="mg-sweet-zone"></div>
+            <div class="mg-cursor" id="coin-meter-fill"></div>
+          </div>
+          <div id="coin-result-msg" class="mg-result-msg" style="display:none;"></div>
+          <button type="button" class="btn-primary-gold" id="btn-coin-throw" style="width:100%;">🪙 กดดีดเหรียญอธิษฐาน!</button>
+        </div>
+
+        <!-- 2. Yi Peng Sky Lantern Heat-Pump -->
+        <div id="mg-view-lantern" style="display:none;">
+          <label class="k-label" for="mg-lantern-wish">คำอธิษฐานลอยฟ้า (สั้นๆ)</label>
+          <input type="text" id="mg-lantern-wish" class="k-input" maxlength="28" placeholder="เช่น สุขภาพแข็งแรง การงานราบรื่น">
+          <div class="mg-lantern-stage">
+            <div class="mg-lantern-icon" id="mg-lantern-icon">🏮</div>
+            <div class="mg-lantern-pct" id="mg-lantern-pct">ความร้อนในโคม 0%</div>
+          </div>
+          <div class="ritual-wish-bar"><div class="ritual-wish-fill" id="mg-lantern-fill"></div></div>
+          <div class="mg-btn-row">
+            <button type="button" class="btn-outline-gold" id="btn-lantern-pump">🔥 แตะเติมลมร้อน</button>
+            <button type="button" class="btn-primary-gold" id="btn-lantern-release" disabled>🏮 ปล่อยโคมขึ้นฟ้า!</button>
+          </div>
+        </div>
+
+        <!-- 3. 2D Temple Fair Balloon Dart -->
+        <div id="mg-view-balloon" style="display:none;">
+          <div class="mg-balloon-stats">
+            <span>คะแนน: <b id="mg-balloon-score">0</b> ลูก</span>
+            <span>เวลา: <b id="mg-balloon-time">20</b> วินาที</span>
+          </div>
+          <div class="mg-canvas-wrap">
+            <canvas id="mg-balloon-canvas" width="320" height="210"></canvas>
+          </div>
+          <div id="mg-balloon-result" class="mg-result-msg" style="display:none;"></div>
+          <button type="button" class="btn-primary-gold" id="btn-balloon-start" style="width:100%;margin-top:8px;">🎯 เริ่มปาโป่งงานวัด (20 วิ)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4-CORNER SA LUANG CHECK-IN PASSPORT MODAL -->
+    <div class="modal-backdrop" id="passport-modal" style="display:none;">
+      <div class="editorial-modal passport-box">
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow">เก็บแสตมป์ 4 ทิศรอบสระ • ไม่แล็ค</p>
+            <h2>🗺️ พาสปอร์ตเที่ยวสระหลวง</h2>
+          </div>
+          <button class="modal-close-btn" id="btn-close-passport">✕</button>
+        </div>
+        <div class="pp-progress-bar-wrap">
+          <span id="pp-progress-text">เช็กอินแล้ว 0/4 ทิศ</span>
+        </div>
+        <div class="passport-grid" id="passport-grid"></div>
+        <button type="button" class="btn-primary-gold" id="btn-passport-reward" style="width:100%;margin-top:12px;" disabled>
+          🎆 เช็กอินครบ 4 ทิศ เพื่อรับพลุฉลองฟรี!
+        </button>
       </div>
     </div>
   </div>

@@ -18,7 +18,7 @@
       e.preventDefault();
       return;
     }
-    const insideModal = e.target && e.target.closest && e.target.closest('.editorial-modal, .dressing-drawer, .emote-menu');
+    const insideModal = e.target && e.target.closest && e.target.closest('.editorial-modal, .dressing-drawer, .workshop-drawer, .minigame-box, .passport-box, .emote-menu');
     if (!insideModal) e.preventDefault();
   }, { passive: false });
 
@@ -64,6 +64,149 @@
   scene.add(camera);
 
   const CART_POS = new THREE.Vector3(TOTO.LOCATIONS.CART_POS.x, 0, TOTO.LOCATIONS.CART_POS.z);
+
+  // Persistent per-browser Device ID for fair per-hour Krathong Quota
+  const MY_DEVICE_ID = (() => {
+    const key = 'saluang_device_id_v1';
+    try {
+      let id = localStorage.getItem(key);
+      if (!id) {
+        id = 'dev_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        localStorage.setItem(key, id);
+      }
+      return id;
+    } catch (_) {
+      return 'dev_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    }
+  })();
+
+  const QUOTA_STORAGE_KEY = 'saluang_krathong_launches_v1';
+  let serverQuotaCache = null;
+
+  function getQuotaCfg() {
+    return TOTO.KRATHONG_QUOTA || { maxPerHour: 3, windowMs: 60 * 60 * 1000 };
+  }
+
+  function getLocalLaunchTimestamps() {
+    const cfg = getQuotaCfg();
+    const cutoff = Date.now() - cfg.windowMs;
+    try {
+      const raw = JSON.parse(localStorage.getItem(QUOTA_STORAGE_KEY) || '[]');
+      const fresh = Array.isArray(raw) ? raw.filter(ts => Number(ts) > cutoff) : [];
+      localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(fresh));
+      return fresh;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function recordLocalLaunchTimestamp() {
+    const cfg = getQuotaCfg();
+    const arr = getLocalLaunchTimestamps();
+    arr.push(Date.now());
+    try {
+      localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(arr.slice(-(cfg.maxPerHour + 4))));
+    } catch (_) {}
+  }
+
+  function getKrathongQuotaStatus() {
+    const cfg = getQuotaCfg();
+    const now = Date.now();
+    const arr = getLocalLaunchTimestamps();
+    const localUsed = arr.length;
+    const localRemaining = Math.max(0, cfg.maxPerHour - localUsed);
+    const localRetrySec = localRemaining === 0 && arr.length > 0
+      ? Math.max(1, Math.ceil((arr[0] + cfg.windowMs - now) / 1000))
+      : 0;
+
+    if (serverQuotaCache && (now - serverQuotaCache.ts) < 20000) {
+      const srvRem = Number(serverQuotaCache.remaining);
+      const remaining = Number.isFinite(srvRem) ? Math.min(localRemaining, srvRem) : localRemaining;
+      const used = Math.max(localUsed, Number(serverQuotaCache.used) || 0);
+      const retryAfterSec = Math.max(localRetrySec, Number(serverQuotaCache.retryAfterSec) || 0);
+      return { used, limit: cfg.maxPerHour, remaining, retryAfterSec };
+    }
+    return { used: localUsed, limit: cfg.maxPerHour, remaining: localRemaining, retryAfterSec: localRetrySec };
+  }
+
+  function updateQuotaUI() {
+    const badge = document.getElementById('k-quota-badge');
+    const q = getKrathongQuotaStatus();
+    if (badge) {
+      if (q.remaining > 0) {
+        badge.classList.remove('exhausted');
+        badge.textContent = `สิทธิ์ลอย: เหลือ ${q.remaining}/${q.limit} ใบ (ชม.)`;
+      } else {
+        const waitMin = Math.max(1, Math.ceil(q.retryAfterSec / 60));
+        badge.classList.add('exhausted');
+        badge.textContent = `ครบโควต้าแล้ว • รอ ${waitMin} นาที`;
+      }
+    }
+  }
+
+  async function refreshQuotaFromServer() {
+    try {
+      const res = await fetch(`/api/krathongs/quota?deviceId=${encodeURIComponent(MY_DEVICE_ID)}`, { cache: 'no-store' });
+      if (res.ok) {
+        const d = await res.json();
+        serverQuotaCache = {
+          ts: Date.now(),
+          used: Number(d.used) || 0,
+          limit: Number(d.limit) || 3,
+          remaining: Number(d.remaining),
+          retryAfterSec: Number(d.retryAfterSec) || 0
+        };
+        updateQuotaUI();
+      }
+    } catch (_) {}
+  }
+
+  const PASSPORT_KEY = 'saluang_passport_v1';
+  let passportData = (() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PASSPORT_KEY) || '{}');
+      return (raw && typeof raw === 'object') ? raw : {};
+    } catch (_) {
+      return {};
+    }
+  })();
+
+  function savePassport() {
+    try { localStorage.setItem(PASSPORT_KEY, JSON.stringify(passportData)); } catch (_) {}
+  }
+
+  function getPassportDoneCount() {
+    return (TOTO.PASSPORT_SPOTS || []).filter(s => !!passportData[s.id]).length;
+  }
+
+  function refreshPassportBadges() {
+    const cnt = getPassportDoneCount();
+    const total = (TOTO.PASSPORT_SPOTS || []).length || 4;
+    const emCnt = document.getElementById('emote-passport-count');
+    if (emCnt) emCnt.textContent = `${cnt}/${total}`;
+  }
+
+  function markPassportSpot(spotId) {
+    if (!spotId) return false;
+    const spot = (TOTO.PASSPORT_SPOTS || []).find(s => s.id === spotId);
+    const wasDone = !!passportData[spotId];
+    if (!wasDone) {
+      passportData[spotId] = Date.now();
+      savePassport();
+      refreshPassportBadges();
+      buildLandmarkMenu();
+      const cnt = getPassportDoneCount();
+      if (cnt >= 4) {
+        showCamToast('🎉 เช็กอินครบ 4 ทิศ สระหลวง! เปิดพาสปอร์ตรับพลุชุดใหญ่ฟรีเลย!');
+        sfx.playCash();
+      } else if (spot) {
+        showCamToast(`🗺️ เช็กอินสำเร็จ (${cnt}/4): ${spot.title}`);
+      }
+      return true;
+    }
+    refreshPassportBadges();
+    return false;
+  }
 
   // Unique per-tab online player identity (so opening 2 tabs creates 2 separate live avatars!)
   const MY_PLAYER_ID = (() => {
@@ -166,6 +309,7 @@
   let hoverX = 0;
   let hoverY = 0;
   let krathongCamFocusTimer = 0;
+  let currentLandmarkAction = '';
   let lastShareMeta = null;
 
   let displayProgress = 0;
@@ -183,8 +327,8 @@
   }
 
   function isModalBackdropOpen() {
-    if (STATE.krathongModalOpen || STATE.avatarModalOpen || STATE.sponsorModalOpen || STATE.searchModalOpen || STATE.seamsiModalOpen || (ritual && ritual.active)) return true;
-    return ['donate-modal', 'share-card-modal', 'wish-popover', 'seamsi-modal'].some(id => {
+    if (STATE.krathongModalOpen || STATE.avatarModalOpen || STATE.sponsorModalOpen || STATE.searchModalOpen || STATE.seamsiModalOpen || STATE.minigameModalOpen || STATE.passportModalOpen || (ritual && ritual.active)) return true;
+    return ['donate-modal', 'share-card-modal', 'wish-popover', 'seamsi-modal', 'minigame-modal', 'passport-modal'].some(id => {
       const el = document.getElementById(id);
       return el && el.style.display === 'flex';
     });
@@ -287,15 +431,28 @@
   function buildLandmarkMenu() {
     const menu = document.getElementById('landmark-menu');
     menu.innerHTML = '';
+    const ppBtn = document.createElement('button');
+    ppBtn.className = 'landmark-item';
+    ppBtn.style.color = '#f5d896';
+    ppBtn.style.borderBottom = '1px solid rgba(212,175,106,0.22)';
+    ppBtn.textContent = `🗺️ พาสปอร์ตเที่ยวสระหลวง (${getPassportDoneCount()}/4)`;
+    ppBtn.onclick = () => {
+      menu.style.display = 'none';
+      openPassportModal();
+    };
+    menu.appendChild(ppBtn);
+
     (TOTO.LANDMARKS || []).forEach(lm => {
       const btn = document.createElement('button');
       btn.className = 'landmark-item';
-      btn.textContent = lm.name;
+      const stamped = !!passportData[lm.id];
+      btn.textContent = `${stamped ? '✅ ' : '📍 '}${lm.name}`;
       btn.onclick = () => warpToLandmark(lm);
       menu.appendChild(btn);
     });
   }
   buildLandmarkMenu();
+  refreshPassportBadges();
 
   function cycleTimeOfDay(explicitMode) {
     const next = explicitMode || (STATE.timeMode === 'NIGHT' ? 'DAY' : 'NIGHT');
@@ -511,6 +668,7 @@
     };
     clearPanInternal();
     sfx.playPop();
+    markPassportSpot('toto');
 
     const matchTbl = TABLES.find(t => t.status === 'WAITING' && t.order && t.order.id === dish.recipe.id);
     if (matchTbl && helperBoy.state === 'IDLE') {
@@ -702,11 +860,33 @@
   // ============================================================
   let activeWishItem = null;
 
+  function getKrathongCraftDetails(item) {
+    const m = item || {};
+    const baseObj = (TOTO.KRATHONG_BASES || []).find(b => b.id === (m.isVip ? 'gold' : (m.baseId || 'banana'))) || { name: 'ใบตองพับกลีบ' };
+    const flowerObj = (TOTO.KRATHONG_FLOWERS || []).find(f => f.id === (m.flowerId || 'lotus')) || { name: 'ดอกบัวชมพู' };
+    const candleObj = (TOTO.KRATHONG_CANDLES || []).find(c => c.id === (m.candleId || 'gold')) || { name: 'เทียนเหลืองทอง' };
+    const toppingObj = (TOTO.KRATHONG_TOPPINGS || []).find(t => t.id === (m.toppingId || 'coin')) || { name: '🪙 เหรียญมงคล 9 บาท' };
+    const baseName = m.baseName || baseObj.name;
+    const flowerName = m.flowerName || flowerObj.name;
+    const candleName = m.candleName || candleObj.name;
+    const toppingName = m.toppingName || toppingObj.name;
+    return {
+      baseName,
+      flowerName,
+      candleName,
+      toppingName,
+      label: `${baseName} • ${flowerName} • ${candleName} • ${toppingName}`
+    };
+  }
+
   TOTO.onSelectKrathongWish = (item) => {
     clearMovementInputs();
     activeWishItem = item;
+    const craft = getKrathongCraftDetails(item);
     document.getElementById('wp-badge').textContent = item.isVip ? 'กระทงทองคำพิเศษ • สระหลวง' : 'คำอธิษฐานริมสระหลวง';
     document.getElementById('wp-name').textContent = item.name || 'ชาวหนองไผ่';
+    const metaEl = document.getElementById('wp-craft-meta');
+    if (metaEl) metaEl.textContent = craft.label;
     document.getElementById('wp-wish').textContent = `"${item.wish || 'ขอให้มีความสุขตลอดปี'}"`;
     const blessCnt = Number(item.blessings) || 0;
     const blessBtn = document.getElementById('btn-bless-krathong');
@@ -781,28 +961,23 @@
   async function fetchKrathongsFromServer() {
     let list = [];
     let total = 0;
+    let fetchedOk = false;
     try {
       const res = await fetch('/api/krathongs', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
+        fetchedOk = true;
         if (Array.isArray(data.krathongs)) {
           list = data.krathongs;
-          total = data.total || list.length;
+          total = Number(data.total) || list.length;
         }
-      }
-    } catch (_) {}
-    try {
-      const localArr = JSON.parse(localStorage.getItem('toto_local_krathongs') || '[]');
-      if (Array.isArray(localArr)) {
-        const seen = new Set(list.map(x => x.id));
-        localArr.forEach(item => {
-          if (item && item.id && !seen.has(item.id)) list.push(item);
-        });
       }
     } catch (_) {}
 
     if (list.length > 0 && typeof charRefs.syncRemoteKrathongs === 'function') {
       charRefs.syncRemoteKrathongs(list);
+    }
+    if (fetchedOk) {
       const countShown = Math.max(total, charRefs.pondKrathongs.length);
       if (lastFetchedTotal !== countShown) {
         lastFetchedTotal = countShown;
@@ -859,12 +1034,56 @@
     document.getElementById('donate-modal').style.display = 'none';
   }
 
+  let krathongPreviewYaw = 0.25;
+  let krathongManualDrag = false;
+  let activeWorkshopTab = 'craft1';
+
+  function updateWorkshopPreview(animatePop) {
+    const craft = getKrathongCraftDetails({
+      baseId: STATE.selectedBase,
+      flowerId: STATE.selectedFlower,
+      candleId: STATE.selectedCandle,
+      toppingId: STATE.selectedTopping,
+      isVip: STATE.selectedBase === 'gold'
+    });
+    const sumEl = document.getElementById('k-craft-summary');
+    if (sumEl) sumEl.textContent = `✨ ฝีมือคุณ: ${craft.label}`;
+    if (STATE.krathongModalOpen && typeof charRefs.showWorkshopPreview === 'function') {
+      charRefs.showWorkshopPreview(
+        STATE.selectedBase,
+        STATE.selectedFlower,
+        STATE.selectedBase === 'gold',
+        STATE.selectedCandle,
+        STATE.selectedTopping,
+        !!animatePop
+      );
+    }
+  }
+
+  function switchWorkshopTab(tabId) {
+    activeWorkshopTab = tabId || 'craft1';
+    document.querySelectorAll('.k-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.ktab === activeWorkshopTab);
+    });
+    ['craft1', 'craft2', 'wish'].forEach(t => {
+      const p = document.getElementById('k-panel-' + t);
+      if (p) p.style.display = (t === activeWorkshopTab) ? 'block' : 'none';
+    });
+    const nextBtn = document.getElementById('btn-k-next-step');
+    if (nextBtn) {
+      nextBtn.style.display = activeWorkshopTab === 'wish' ? 'none' : 'inline-flex';
+    }
+    const dr = document.querySelector('#krathong-modal .workshop-drawer');
+    if (dr) dr.scrollTop = 0;
+  }
+
   function renderWorkshopChoices() {
     const bGrid = document.getElementById('krathong-base-grid');
     bGrid.innerHTML = '';
     TOTO.KRATHONG_BASES.forEach(kb => {
       const locked = !!kb.vipOnly && !STATE.vipUnlocked;
       const btn = document.createElement('button');
+      btn.type = 'button';
       btn.className = 'k-choice' + (STATE.selectedBase === kb.id ? ' selected' : '');
       const vipTag = kb.vipOnly
         ? `<div class="kc-vip-tag">${STATE.vipUnlocked ? 'ปลดล็อกแล้ว ✨' : 'ร่วมสนับสนุนเพื่อปลดล็อก'}</div>`
@@ -877,6 +1096,7 @@
         }
         STATE.selectedBase = kb.id;
         renderWorkshopChoices();
+        updateWorkshopPreview(true);
         sfx.playPop();
       };
       bGrid.appendChild(btn);
@@ -886,31 +1106,90 @@
     fGrid.innerHTML = '';
     TOTO.KRATHONG_FLOWERS.forEach(kf => {
       const btn = document.createElement('button');
+      btn.type = 'button';
       btn.className = 'k-choice' + (STATE.selectedFlower === kf.id ? ' selected' : '');
       btn.innerHTML = `<div class="kc-name">${kf.name}</div><div class="kc-desc">${kf.desc}</div>`;
       btn.onclick = () => {
         STATE.selectedFlower = kf.id;
         renderWorkshopChoices();
+        updateWorkshopPreview(true);
         sfx.playPop();
       };
       fGrid.appendChild(btn);
     });
 
+    const cGrid = document.getElementById('krathong-candle-grid');
+    if (cGrid) {
+      cGrid.innerHTML = '';
+      (TOTO.KRATHONG_CANDLES || []).forEach(kc => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'k-choice' + (STATE.selectedCandle === kc.id ? ' selected' : '');
+        btn.innerHTML = `<div class="kc-name"><span class="k-candle-dot" style="background:${kc.hex};"></span>${kc.name}</div><div class="kc-desc">${kc.desc}</div>`;
+        btn.onclick = () => {
+          STATE.selectedCandle = kc.id;
+          renderWorkshopChoices();
+          updateWorkshopPreview(true);
+          sfx.playPop();
+        };
+        cGrid.appendChild(btn);
+      });
+    }
+
+    const tGrid = document.getElementById('krathong-topping-grid');
+    if (tGrid) {
+      tGrid.innerHTML = '';
+      (TOTO.KRATHONG_TOPPINGS || []).forEach(kt => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'k-choice' + (STATE.selectedTopping === kt.id ? ' selected' : '');
+        btn.innerHTML = `<div class="kc-name">${kt.name}</div><div class="kc-desc">${kt.desc}</div>`;
+        btn.onclick = () => {
+          STATE.selectedTopping = kt.id;
+          renderWorkshopChoices();
+          updateWorkshopPreview(true);
+          sfx.playPop();
+        };
+        tGrid.appendChild(btn);
+      });
+    }
+
     document.getElementById('k-stat-pond-total').textContent = Math.max(charRefs.pondKrathongs.length, lastFetchedTotal, 0);
+    updateQuotaUI();
   }
 
   function openKrathongModal() {
     clearMovementInputs();
     closeCookPanel();
+    document.getElementById('emote-menu').style.display = 'none';
+    STATE.emoteMenuOpen = false;
+    document.getElementById('landmark-menu').style.display = 'none';
     STATE.krathongModalOpen = true;
+    document.body.classList.add('krathong-open');
+    krathongManualDrag = false;
+    krathongPreviewYaw = 0.25;
+    const kNameEl = document.getElementById('k-input-name');
+    if (kNameEl && (!kNameEl.value.trim() || kNameEl.dataset.autoSynced === '1')) {
+      kNameEl.value = myProfile.name || '';
+      kNameEl.dataset.autoSynced = '1';
+    }
+    switchWorkshopTab('craft1');
     renderWorkshopChoices();
+    updateWorkshopPreview(true);
+    refreshQuotaFromServer();
     document.getElementById('krathong-modal').style.display = 'flex';
     sfx.playPop();
   }
 
   function closeKrathongModal() {
     STATE.krathongModalOpen = false;
+    document.body.classList.remove('krathong-open');
     document.getElementById('krathong-modal').style.display = 'none';
+    if (typeof charRefs.hideWorkshopPreview === 'function') charRefs.hideWorkshopPreview();
+    dressingFillLight.visible = false;
+    if (!ritual.active) {
+      toto.root.visible = (STATE.camMode !== 1 || STATE.avatarModalOpen);
+    }
   }
 
   function updateShareFortuneLine() {
@@ -1002,10 +1281,21 @@
     };
     lastShareMeta = m;
 
-    document.getElementById('sc-krathong-badge').textContent = `${m.baseName || 'กระทงใบตอง'} • ${m.flowerName || 'ดอกบัวชมพู'}${m.isVip ? ' (กระทงทองคำ)' : ''}${m.perfectMoon ? ' • ✨ ลอยตรงแสงจันทร์' : ''}`;
+    const craft = getKrathongCraftDetails(m);
+    document.getElementById('sc-krathong-badge').textContent = `${craft.label}${m.isVip ? ' (ทองคำพิเศษ)' : ''}${m.perfectMoon ? ' • ✨ ลอยตรงแสงจันทร์' : ''}`;
     document.getElementById('sc-name').textContent = m.name;
     document.getElementById('sc-wish').textContent = `"${m.wish}"`;
     updateShareFortuneLine();
+    const ppLine = document.getElementById('sc-passport-line');
+    if (ppLine) {
+      const ppCnt = getPassportDoneCount();
+      if (ppCnt >= 4) {
+        ppLine.style.display = 'inline-block';
+        ppLine.textContent = '🗺️ นักเที่ยวสระหลวงครบ 4 ทิศ (เช็กอิน 4/4)';
+      } else {
+        ppLine.style.display = 'none';
+      }
+    }
     document.getElementById('sc-shop-title').textContent = mono.shopCardTitle || 'เจ๊แพรรี่ หอยทอด ผัดไทย • สระหลวง หนองไผ่';
     document.getElementById('sc-shop-sub').textContent = mono.shopCardSubtitle || 'แวะชิมหอยทอดกรอบ ออส่วน ผัดไทยร้อนๆ ได้ที่หน้าร้านจริง';
     document.getElementById('sc-shop-address').textContent = mono.shopAddress || 'ซอยสระหลวงใต้ (ซอยเทศบาล 34) อ.หนองไผ่';
@@ -1079,8 +1369,8 @@
     ctx.fillText(m.name, 540, 756);
 
     ctx.fillStyle = '#e8c785';
-    ctx.font = '400 26px Prompt, sans-serif';
-    ctx.fillText(`${m.baseName} • ${m.flowerName}`, 540, 806);
+    ctx.font = '400 22px Prompt, sans-serif';
+    ctx.fillText(getKrathongCraftDetails(m).label, 540, 806);
 
     // Word-wrap wish text cleanly
     ctx.fillStyle = '#f6f0e4';
@@ -1102,7 +1392,12 @@
     if (STATE.myFortune && STATE.myFortune.title) {
       ctx.fillStyle = '#fef08a';
       ctx.font = '600 24px Prompt, sans-serif';
-      ctx.fillText(`🔮 เซียมซีใบที่ ${STATE.myFortune.num} (${STATE.myFortune.level}): ${STATE.myFortune.title}`, 540, 1022);
+      ctx.fillText(`🔮 เซียมซีใบที่ ${STATE.myFortune.num} (${STATE.myFortune.level}): ${STATE.myFortune.title}`, 540, 1004);
+    }
+    if (getPassportDoneCount() >= 4) {
+      ctx.fillStyle = '#86efac';
+      ctx.font = '600 21px Prompt, sans-serif';
+      ctx.fillText('🗺️ นักเที่ยวสระหลวงครบ 4 ทิศ (เช็กอิน 4/4)', 540, 1038);
     }
 
     // Clean shop location footer (no discount/coupon)
@@ -1165,18 +1460,32 @@
   function submitRitualKrathong() {
     if (ritual.submitted || !ritual.meta) return;
     ritual.submitted = true;
-    const meta = ritual.meta;
-    try {
-      const localArr = JSON.parse(localStorage.getItem('toto_local_krathongs') || '[]');
-      localArr.push(meta);
-      localStorage.setItem('toto_local_krathongs', JSON.stringify(localArr.slice(-45)));
-    } catch (_) {}
+    const meta = Object.assign({}, ritual.meta, { deviceId: MY_DEVICE_ID });
 
     fetch('/api/krathongs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(meta)
-    }).then(() => fetchKrathongsFromServer()).catch(() => {});
+    }).then(async (res) => {
+      const d = await res.json().catch(() => ({}));
+      if (d && d.quota) {
+        serverQuotaCache = {
+          ts: Date.now(),
+          used: Number(d.quota.used) || 0,
+          limit: Number(d.quota.limit) || 3,
+          remaining: Number(d.quota.remaining),
+          retryAfterSec: Number(d.quota.retryAfterSec) || 0
+        };
+      }
+      if (res.ok) {
+        recordLocalLaunchTimestamp();
+        updateQuotaUI();
+        markPassportSpot('pier');
+        fetchKrathongsFromServer();
+      } else if (d && d.error) {
+        showCamToast(d.error);
+      }
+    }).catch(() => {});
 
     STATE.krathongLaunched++;
     const p1 = document.getElementById('ui-pond-count');
@@ -1287,8 +1596,18 @@
   }
 
   async function launchKrathongAction() {
+    const q = getKrathongQuotaStatus();
+    if (q.remaining <= 0) {
+      const waitMin = Math.max(1, Math.ceil(q.retryAfterSec / 60));
+      showCamToast(`คุณลอยกระทงครบ ${q.limit} ใบต่อชั่วโมงแล้ว รออีก ${waitMin} นาทีนะ ✨`);
+      updateQuotaUI();
+      return;
+    }
+
     const baseObj = TOTO.KRATHONG_BASES.find(b => b.id === STATE.selectedBase) || TOTO.KRATHONG_BASES[0];
     const flowerObj = TOTO.KRATHONG_FLOWERS.find(f => f.id === STATE.selectedFlower) || TOTO.KRATHONG_FLOWERS[0];
+    const candleObj = (TOTO.KRATHONG_CANDLES || []).find(c => c.id === STATE.selectedCandle) || { id: 'gold', name: 'เทียนเหลืองทอง' };
+    const toppingObj = (TOTO.KRATHONG_TOPPINGS || []).find(t => t.id === STATE.selectedTopping) || { id: 'coin', name: '🪙 เหรียญมงคล 9 บาท' };
 
     if (baseObj.vipOnly && !STATE.vipUnlocked) {
       openDonateModal();
@@ -1306,8 +1625,12 @@
       wish: playerWish.slice(0, 70),
       baseId: baseObj.id,
       flowerId: flowerObj.id,
+      candleId: candleObj.id,
+      toppingId: toppingObj.id,
       baseName: baseObj.name,
       flowerName: flowerObj.name,
+      candleName: candleObj.name,
+      toppingName: toppingObj.name,
       typeId: baseObj.vipOnly ? 'toto' : (flowerObj.id === 'marigold' ? 'marigold' : 'lotus'),
       isVip: !!baseObj.vipOnly,
       perfectMoon: false
@@ -1504,8 +1827,8 @@
       try {
         const d = JSON.parse(ev.data || '{}');
         if (Array.isArray(d.players)) reconcileRemotePlayers(d.players);
-        if (Array.isArray(d.krathongs) && d.krathongs.length > 0 && typeof charRefs.syncRemoteKrathongs === 'function') {
-          charRefs.syncRemoteKrathongs(d.krathongs);
+        if (Array.isArray(d.krathongs) && typeof charRefs.syncRemoteKrathongs === 'function') {
+          if (d.krathongs.length > 0) charRefs.syncRemoteKrathongs(d.krathongs);
           const srvAllTime = Number(d.stats && d.stats.totalKrathongsAllTime) || 0;
           const cnt = Math.max(srvAllTime, d.krathongs.length, charRefs.pondKrathongs.length);
           lastFetchedTotal = cnt;
@@ -1568,6 +1891,7 @@
         const d = JSON.parse(ev.data || '{}');
         if (d.id && typeof charRefs.removeKrathongById === 'function') {
           charRefs.removeKrathongById(d.id);
+          fetchKrathongsFromServer();
         }
       } catch (_) {}
     });
@@ -1777,7 +2101,10 @@
 
     resEl.innerHTML = '';
     if (!items.length) {
-      resEl.innerHTML = '<div style="color:var(--ivory-muted);font-size:13px;padding:12px;text-align:center;">ไม่พบกระทงที่ค้นหา ลองพิมพ์คำอื่นครับ</div>';
+      const msg = charRefs.pondKrathongs.length === 0
+        ? 'ยังไม่มีกระทงในสระหลวง — มาเป็นคนแรกลอยกระทงกันเลย! 🪷'
+        : 'ไม่พบกระทงที่ค้นหา ลองพิมพ์คำอื่นครับ';
+      resEl.innerHTML = `<div style="color:var(--ivory-muted);font-size:13px;padding:14px;text-align:center;">${msg}</div>`;
       return;
     }
     items.forEach(pk => {
@@ -1897,7 +2224,7 @@
     const visibleTags = [];
     charRefs.pondKrathongs.forEach(pk => {
       if (!pk.tagEl) return;
-      if (STATE.started && !STATE.photoMode && !STATE.avatarModalOpen && !ritual.active && STATE.loyKrathongMode) {
+      if (STATE.started && !STATE.photoMode && !STATE.avatarModalOpen && !STATE.krathongModalOpen && !STATE.minigameModalOpen && !STATE.passportModalOpen && !ritual.active && STATE.loyKrathongMode) {
         projVec.set(pk.mesh.position.x, pk.mesh.position.y + 0.65, pk.mesh.position.z);
         projVec.project(camera);
         const sx = (projVec.x * 0.5 + 0.5) * w;
@@ -1927,9 +2254,33 @@
       pk.tagEl.style.display = 'block';
     });
 
+    const nearCart = isNearCart();
+    const canShowContextBar = STATE.started && !STATE.photoMode && !STATE.cookPanelOpen && !isModalBackdropOpen();
     const stallBar = document.getElementById('toto-stall-bar');
     if (stallBar) {
-      stallBar.style.display = (STATE.started && !STATE.photoMode && !STATE.cookPanelOpen && !isModalBackdropOpen() && isNearCart()) ? 'block' : 'none';
+      stallBar.style.display = (canShowContextBar && nearCart) ? 'block' : 'none';
+    }
+
+    const lmBar = document.getElementById('landmark-action-bar');
+    if (lmBar) {
+      let spotMeta = null;
+      if (canShowContextBar && !nearCart) {
+        const dWest = Math.hypot(toto.pos.x - 65.5, toto.pos.z - 36);
+        const dNorth = Math.hypot(toto.pos.x - 6, toto.pos.z - 66.2);
+        const dPier = Math.hypot(toto.pos.x - 6, toto.pos.z - 6.2);
+        if (dWest < 12) spotMeta = { key: 'lantern', title: 'ซุ้มประตูเทศบาลฯ • ทิศตะวันตก', cta: '🏮 ปล่อยโคมยี่เป็งเลี้ยงลมร้อน' };
+        else if (dNorth < 12) spotMeta = { key: 'balloon', title: 'ฝั่งตึกแถวแอดไวซ์ • งานวัดหนองไผ่', cta: '🎯 เล่นซุ้มปาโป่งงานวัด' };
+        else if (dPier < 8.5) spotMeta = { key: 'coin', title: 'ท่าน้ำสระหลวง • หนองไผ่', cta: '🪙 โยนเหรียญน้ำพุกลางสระ' };
+      }
+      if (spotMeta) {
+        currentLandmarkAction = spotMeta.key;
+        document.getElementById('lm-bar-title').textContent = spotMeta.title;
+        document.getElementById('btn-open-landmark-game').textContent = spotMeta.cta;
+        lmBar.style.display = 'block';
+      } else {
+        currentLandmarkAction = '';
+        lmBar.style.display = 'none';
+      }
     }
 
     // 3D Sponsor Billboards & Rental Booth World Tags
@@ -2042,6 +2393,8 @@
       closeWishPopover();
       closeSponsorModal();
       closeSearchKrathongModal();
+      closeMinigameModal();
+      closePassportModal();
       if (STATE.avatarModalOpen) closeAvatarModal(true);
       document.getElementById('emote-menu').style.display = 'none';
       STATE.emoteMenuOpen = false;
@@ -2135,11 +2488,14 @@
     const yawSens = isMouse ? 0.0055 : 0.0078;
     const pitchSens = isMouse ? 0.0045 : 0.0058;
     const modalOpen = isModalBackdropOpen();
-    const overUI = !!(e.target && e.target.closest && e.target.closest('#cook-panel, .editorial-modal, .dressing-drawer, .emote-menu, .landmark-menu, #toto-stall-bar, #main-dock, .krathong-wish-tag, .sponsor-world-tag, #photo-mode-bar, .icon-tool-btn, .location-pill, #mobile-cam-pad'));
+    const overUI = !!(e.target && e.target.closest && e.target.closest('#cook-panel, .editorial-modal, .dressing-drawer, .workshop-drawer, .minigame-box, .passport-box, .emote-menu, .landmark-menu, #toto-stall-bar, #landmark-action-bar, #main-dock, .krathong-wish-tag, .sponsor-world-tag, #photo-mode-bar, .icon-tool-btn, .location-pill, #mobile-cam-pad'));
 
     if (isDragging && (isMouse || lookPointerId === null || e.pointerId === lookPointerId)) {
       if (Math.hypot(dx, dy) > 4) dragMoved = true;
-      if (STATE.avatarModalOpen || (STATE.photoMode && STATE.selfieMode)) {
+      if (STATE.krathongModalOpen) {
+        krathongManualDrag = true;
+        krathongPreviewYaw += dx * 0.014;
+      } else if (STATE.avatarModalOpen || (STATE.photoMode && STATE.selfieMode)) {
         manualPreviewDrag = true;
         previewYaw += dx * 0.012;
       } else {
@@ -2463,6 +2819,17 @@
 
   document.getElementById('btn-close-krathong').onclick = closeKrathongModal;
   document.getElementById('btn-launch-krathong').onclick = launchKrathongAction;
+  document.querySelectorAll('.k-tab-btn').forEach(btn => {
+    btn.onclick = () => {
+      switchWorkshopTab(btn.dataset.ktab || 'craft1');
+      sfx.playPop();
+    };
+  });
+  document.getElementById('btn-k-next-step').onclick = () => {
+    const nextTab = activeWorkshopTab === 'craft1' ? 'craft2' : 'wish';
+    switchWorkshopTab(nextTab);
+    sfx.playPop();
+  };
   document.querySelectorAll('.wish-chip').forEach(chip => {
     chip.onclick = () => {
       const wi = document.getElementById('k-input-wish');
@@ -2510,6 +2877,7 @@
       renderAvatarCustomizer();
     } else if (STATE.krathongModalOpen) {
       renderWorkshopChoices();
+      updateWorkshopPreview(true);
     } else if (STATE.avatarModalOpen) {
       rebuildPlayerAvatar({ outfit: 'vip_gold' });
       renderAvatarCustomizer();
@@ -2522,8 +2890,10 @@
   document.getElementById('btn-download-card').onclick = downloadKeepsakeCardPNG;
   document.getElementById('btn-share-copy').onclick = () => {
     const m = lastShareMeta || { name: 'ชาวหนองไผ่', wish: 'สุขสันต์วันลอยกระทง สระหลวง หนองไผ่' };
+    const craft = getKrathongCraftDetails(m);
     const fLine = STATE.myFortune && STATE.myFortune.title ? `\n🔮 เซียมซีใบที่ ${STATE.myFortune.num}: ${STATE.myFortune.title}` : '';
-    const msg = `ลอยกระทงออนไลน์ ณ สระหลวง อ.หนองไผ่\nโดย: ${m.name}\n"${m.wish}"${fLine}\n${window.location.href}`;
+    const pLine = getPassportDoneCount() >= 4 ? '\n🗺️ เช็กอินครบ 4 ทิศ สระหลวง' : '';
+    const msg = `ลอยกระทงออนไลน์ ณ สระหลวง อ.หนองไผ่\nโดย: ${m.name} (${craft.label})\n"${m.wish}"${fLine}${pLine}\n${window.location.href}`;
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).catch(() => {});
     showCamToast('คัดลอกคำอวยพรและลิงก์แล้ว');
     sfx.playPop();
@@ -2536,6 +2906,399 @@
   };
   document.getElementById('btn-close-seamsi').onclick = closeSeamSiModal;
   document.getElementById('btn-shake-seamsi').onclick = shakeSeamSi;
+
+  // ============================================================
+  // 8B. ZERO-LAG LANDMARK MINI-GAMES & 4-CORNER PASSPORT
+  // ============================================================
+  let activeMinigame = '';
+  const coinGame = { running: false, phase: 0, pos: 50, throwing: false };
+  const lanternGame = { heat: 0, launched: false };
+  const balloonGame = {
+    running: false,
+    rafId: null,
+    timerId: null,
+    score: 0,
+    timeLeft: 20,
+    balloons: [],
+    pops: []
+  };
+
+  function renderPassportModal() {
+    const grid = document.getElementById('passport-grid');
+    if (!grid) return;
+    const spots = TOTO.PASSPORT_SPOTS || [];
+    const doneCount = getPassportDoneCount();
+    const progEl = document.getElementById('pp-progress-text');
+    if (progEl) progEl.textContent = `เช็กอินแล้ว ${doneCount}/${spots.length} ทิศ`;
+
+    grid.innerHTML = '';
+    spots.forEach(sp => {
+      const done = !!passportData[sp.id];
+      const card = document.createElement('div');
+      card.className = 'passport-card' + (done ? ' done' : '');
+      card.innerHTML = `
+        <div>
+          <div class="pp-card-head">${sp.icon} ${sp.title}</div>
+          <div class="pp-card-task">${sp.task}</div>
+        </div>
+        <div class="pp-card-foot">
+          <span class="pp-stamp">${done ? '✅ เช็กอินแล้ว' : '⏳ รอสำรวจ'}</span>
+          <button type="button" class="btn-outline-gold sp-copy-btn">วาร์ปไปจุดนี้</button>
+        </div>
+      `;
+      card.querySelector('button').onclick = () => {
+        closePassportModal();
+        const lm = (TOTO.LANDMARKS || []).find(l => l.id === sp.landmarkId);
+        warpToLandmark(lm);
+      };
+      grid.appendChild(card);
+    });
+
+    const rwBtn = document.getElementById('btn-passport-reward');
+    if (rwBtn) {
+      rwBtn.disabled = doneCount < spots.length;
+      rwBtn.textContent = doneCount >= spots.length
+        ? '🎆 จุดพลุฉลองครบ 4 ทิศฟรี!'
+        : `🎆 เช็กอินอีก ${spots.length - doneCount} จุด เพื่อรับพลุฉลองฟรี!`;
+    }
+  }
+
+  function openPassportModal() {
+    clearMovementInputs();
+    closeCookPanel();
+    document.getElementById('emote-menu').style.display = 'none';
+    STATE.emoteMenuOpen = false;
+    document.getElementById('landmark-menu').style.display = 'none';
+    STATE.passportModalOpen = true;
+    renderPassportModal();
+    document.getElementById('passport-modal').style.display = 'flex';
+    sfx.playPop();
+  }
+
+  function closePassportModal() {
+    STATE.passportModalOpen = false;
+    const el = document.getElementById('passport-modal');
+    if (el) el.style.display = 'none';
+  }
+
+  function stopBalloonGame() {
+    balloonGame.running = false;
+    if (balloonGame.rafId) {
+      cancelAnimationFrame(balloonGame.rafId);
+      balloonGame.rafId = null;
+    }
+    if (balloonGame.timerId) {
+      clearInterval(balloonGame.timerId);
+      balloonGame.timerId = null;
+    }
+  }
+
+  function drawBalloonFrame() {
+    const cvs = document.getElementById('mg-balloon-canvas');
+    if (!cvs) return;
+    const ctx = cvs.getContext('2d');
+    const w = cvs.width, h = cvs.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Subtle temple-fair night backdrop
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#09152b');
+    bg.addColorStop(1, '#152546');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = 'rgba(212,175,106,0.28)';
+    ctx.lineWidth = 1;
+    for (let x = 20; x < w; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 16);
+      ctx.stroke();
+    }
+
+    for (let i = balloonGame.balloons.length - 1; i >= 0; i--) {
+      const b = balloonGame.balloons[i];
+      if (balloonGame.running) {
+        b.x += b.vx;
+        b.y += b.vy;
+        if (b.x < b.r + 6 || b.x > w - b.r - 6) b.vx *= -1;
+        if (b.y < b.r + 12 || b.y > h - b.r - 12) b.vy *= -1;
+      }
+
+      ctx.strokeStyle = 'rgba(248,250,252,0.5)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y + b.r * 1.15);
+      ctx.lineTo(b.x, b.y + b.r * 1.15 + 18);
+      ctx.stroke();
+
+      ctx.fillStyle = b.color;
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y, b.r * 0.88, b.r * 1.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(b.x - b.r * 0.28, b.y - b.r * 0.35, b.r * 0.22, b.r * 0.35, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (b.bonus) {
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 11px Prompt, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('+2', b.x, b.y + 4);
+      }
+    }
+
+    for (let i = balloonGame.pops.length - 1; i >= 0; i--) {
+      const p = balloonGame.pops[i];
+      p.t += 0.08;
+      if (p.t >= 1) {
+        balloonGame.pops.splice(i, 1);
+        continue;
+      }
+      ctx.strokeStyle = p.color;
+      ctx.globalAlpha = 1 - p.t;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 10 + p.t * 24, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    if (balloonGame.running) {
+      balloonGame.rafId = requestAnimationFrame(drawBalloonFrame);
+    }
+  }
+
+  function spawnBalloonItem(isBonus) {
+    const palette = ['#f472b6', '#38bdf8', '#4ade80', '#fb923c', '#a855f7'];
+    return {
+      x: 34 + Math.random() * 252,
+      y: 34 + Math.random() * 140,
+      r: isBonus ? 17 : 20,
+      vx: (Math.random() > 0.5 ? 1 : -1) * (isBonus ? 2.1 : 1.1 + Math.random() * 1.1),
+      vy: (Math.random() > 0.5 ? 1 : -1) * (isBonus ? 1.7 : 0.9 + Math.random() * 0.9),
+      color: isBonus ? '#fde047' : palette[Math.floor(Math.random() * palette.length)],
+      bonus: !!isBonus
+    };
+  }
+
+  function startBalloonGame() {
+    stopBalloonGame();
+    balloonGame.score = 0;
+    balloonGame.timeLeft = 20;
+    balloonGame.pops = [];
+    balloonGame.balloons = [];
+    for (let i = 0; i < 9; i++) balloonGame.balloons.push(spawnBalloonItem(i === 0));
+    document.getElementById('mg-balloon-score').textContent = '0';
+    document.getElementById('mg-balloon-time').textContent = '20';
+    document.getElementById('mg-balloon-result').style.display = 'none';
+    const startBtn = document.getElementById('btn-balloon-start');
+    if (startBtn) startBtn.style.display = 'none';
+
+    balloonGame.running = true;
+    drawBalloonFrame();
+    sfx.playPop();
+
+    balloonGame.timerId = setInterval(() => {
+      balloonGame.timeLeft = Math.max(0, balloonGame.timeLeft - 1);
+      const tEl = document.getElementById('mg-balloon-time');
+      if (tEl) tEl.textContent = balloonGame.timeLeft;
+      if (balloonGame.timeLeft <= 0) {
+        stopBalloonGame();
+        drawBalloonFrame();
+        const resEl = document.getElementById('mg-balloon-result');
+        const sc = balloonGame.score;
+        if (resEl) {
+          resEl.style.display = 'block';
+          resEl.textContent = sc >= 6
+            ? `🎯 แม่นเป้าสุดยอด! ได้ ${sc} แต้ม — รับพลุฉลองฟรี + แสตมป์ฝั่งแอดไวซ์ ✨`
+            : `🎯 จบเกมได้ ${sc} แต้ม — ได้รับแสตมป์เช็กอินฝั่งแอดไวซ์แล้ว!`;
+        }
+        if (startBtn) {
+          startBtn.style.display = 'block';
+          startBtn.textContent = '🎯 เล่นซุ้มปาโป่งอีกครั้ง';
+        }
+        if (sc >= 6) {
+          charRefs.launchFirework(6, 54);
+          postEmote('firework', { x: 6, z: 54, isVip: STATE.vipUnlocked });
+          sfx.playCash();
+        } else {
+          sfx.playWishChime();
+        }
+        markPassportSpot('north_advice');
+      }
+    }, 1000);
+  }
+
+  function updateLanternUI() {
+    const pct = Math.round(lanternGame.heat);
+    const fill = document.getElementById('mg-lantern-fill');
+    const lbl = document.getElementById('mg-lantern-pct');
+    const icon = document.getElementById('mg-lantern-icon');
+    const relBtn = document.getElementById('btn-lantern-release');
+    if (fill) fill.style.width = pct + '%';
+    if (lbl) lbl.textContent = pct >= 100 ? 'ลมร้อนเต็มที่แล้ว • กดปล่อยโคมได้เลย! ✨' : `ความร้อนในโคม ${pct}%`;
+    if (icon) {
+      const sc = 1 + (pct / 100) * 0.28;
+      icon.style.transform = `scale(${sc}) translateY(${-Math.round((pct / 100) * 8)}px)`;
+      icon.style.filter = `drop-shadow(0 0 ${6 + Math.round(pct * 0.18)}px #fb923c)`;
+    }
+    if (relBtn) relBtn.disabled = pct < 100;
+  }
+
+  function openMinigameModal(kind) {
+    clearMovementInputs();
+    closeCookPanel();
+    activeMinigame = kind;
+    STATE.minigameModalOpen = true;
+    const backdrop = document.getElementById('minigame-modal');
+    backdrop.classList.toggle('mg-backdrop-bottom', kind === 'coin' || kind === 'lantern');
+
+    document.getElementById('mg-view-coin').style.display = kind === 'coin' ? 'block' : 'none';
+    document.getElementById('mg-view-lantern').style.display = kind === 'lantern' ? 'block' : 'none';
+    document.getElementById('mg-view-balloon').style.display = kind === 'balloon' ? 'block' : 'none';
+
+    if (kind === 'coin') {
+      document.getElementById('mg-eyebrow').textContent = 'ท่าน้ำสระหลวง • น้ำพุกลางสระ';
+      document.getElementById('mg-title').textContent = '🪙 โยนเหรียญอธิษฐานน้ำพุ';
+      document.getElementById('coin-result-msg').style.display = 'none';
+      const cBtn = document.getElementById('btn-coin-throw');
+      if (cBtn) { cBtn.disabled = false; cBtn.textContent = '🪙 กดดีดเหรียญอธิษฐาน!'; }
+      coinGame.running = true;
+      coinGame.throwing = false;
+      coinGame.phase = 0;
+      coinGame.pos = 50;
+      camYaw = 0.06;
+      camPitch = 0.04;
+    } else if (kind === 'lantern') {
+      document.getElementById('mg-eyebrow').textContent = 'ซุ้มประตูเทศบาลฯ • ทิศตะวันตก';
+      document.getElementById('mg-title').textContent = '🏮 ปล่อยโคมยี่เป็งเลี้ยงลมร้อน';
+      lanternGame.heat = 12;
+      lanternGame.launched = false;
+      const pBtn = document.getElementById('btn-lantern-pump');
+      if (pBtn) pBtn.disabled = false;
+      updateLanternUI();
+      camPitch = 0.28;
+    } else if (kind === 'balloon') {
+      stopBalloonGame();
+      document.getElementById('mg-eyebrow').textContent = 'ฝั่งตึกแถวแอดไวซ์ • งานวัดหนองไผ่';
+      document.getElementById('mg-title').textContent = '🎯 ซุ้มปาโป่งงานวัด 2D';
+      document.getElementById('mg-balloon-score').textContent = '0';
+      document.getElementById('mg-balloon-time').textContent = '20';
+      document.getElementById('mg-balloon-result').style.display = 'none';
+      const startBtn = document.getElementById('btn-balloon-start');
+      if (startBtn) { startBtn.style.display = 'block'; startBtn.textContent = '🎯 เริ่มปาโป่งงานวัด (20 วิ)'; }
+      balloonGame.balloons = [];
+      for (let i = 0; i < 9; i++) balloonGame.balloons.push(spawnBalloonItem(i === 0));
+      drawBalloonFrame();
+    }
+
+    backdrop.style.display = 'flex';
+    sfx.playPop();
+  }
+
+  function closeMinigameModal() {
+    stopBalloonGame();
+    coinGame.running = false;
+    activeMinigame = '';
+    STATE.minigameModalOpen = false;
+    const backdrop = document.getElementById('minigame-modal');
+    if (backdrop) {
+      backdrop.style.display = 'none';
+      backdrop.classList.remove('mg-backdrop-bottom');
+    }
+  }
+
+  document.getElementById('btn-open-landmark-game').onclick = () => {
+    if (currentLandmarkAction) openMinigameModal(currentLandmarkAction);
+  };
+  document.getElementById('btn-close-minigame').onclick = closeMinigameModal;
+  document.getElementById('btn-open-passport-emote').onclick = openPassportModal;
+  document.getElementById('btn-close-passport').onclick = closePassportModal;
+  document.getElementById('btn-passport-reward').onclick = () => {
+    if (getPassportDoneCount() < 4) return;
+    closePassportModal();
+    charRefs.launchVipFireworkSalute();
+    postEmote('firework', { x: 8, z: 36, isVip: true });
+    sfx.playCash();
+    showCamToast('🎆 พลุเฉลิมฉลองนักเที่ยวสระหลวงครบ 4 ทิศ!');
+  };
+
+  document.getElementById('btn-coin-throw').onclick = () => {
+    if (coinGame.throwing) return;
+    if (!coinGame.running) {
+      openMinigameModal('coin');
+      return;
+    }
+    coinGame.running = false;
+    coinGame.throwing = true;
+    const isHit = coinGame.pos >= 40 && coinGame.pos <= 60;
+    const cBtn = document.getElementById('btn-coin-throw');
+    if (cBtn) { cBtn.disabled = true; cBtn.textContent = '🪙 เหรียญกำลังลอยสู่น้ำพุ...'; }
+    sfx.playWaterPush(isHit);
+    const fortunes = [
+      '✨ เหรียญลงกลางอ่างน้ำพุ! ดวงการเงิน-โชคลาภเปิดรับทรัพย์ตลอดปี',
+      '💧 น้ำพุรับคำอธิษฐาน! ชีวิตราบรื่นไร้อุปสรรค มีคนเมตตาเกื้อหนุน',
+      '🪷 พลิ้วตรงแสงจันทร์! สิ่งที่หวังไว้กำลังค่อยๆ สมปรารถนา'
+    ];
+    charRefs.launchCoinToss(toto.pos.clone(), isHit, (hit) => {
+      coinGame.throwing = false;
+      const msgEl = document.getElementById('coin-result-msg');
+      if (msgEl) {
+        msgEl.style.display = 'block';
+        msgEl.textContent = hit
+          ? fortunes[Math.floor(Math.random() * fortunes.length)]
+          : '💦 เหรียญตกลงผิวน้ำสระหลวงอย่างงดงาม! กดโยนอีกครั้งให้ลงกลางน้ำพุได้นะ';
+      }
+      if (hit) sfx.playCash();
+      else sfx.playWishChime();
+      markPassportSpot('pier');
+      if (cBtn) { cBtn.disabled = false; cBtn.textContent = '🪙 โยนเหรียญอีกครั้ง'; }
+    });
+  };
+
+  document.getElementById('btn-lantern-pump').onclick = () => {
+    if (lanternGame.launched) return;
+    lanternGame.heat = Math.min(100, lanternGame.heat + 16);
+    sfx.playPop();
+    updateLanternUI();
+  };
+
+  document.getElementById('btn-lantern-release').onclick = () => {
+    if (lanternGame.heat < 100 || lanternGame.launched) return;
+    lanternGame.launched = true;
+    const wishText = (document.getElementById('mg-lantern-wish').value || '').trim() || 'ขอพรยี่เป็ง สระหลวง หนองไผ่';
+    charRefs.spawnSkyLantern(toto.pos.x - 10, toto.pos.z - 2);
+    charRefs.spawnSkyLantern(toto.pos.x - 14, toto.pos.z + 2);
+    postEmote('wave');
+    sfx.playWishChime();
+    markPassportSpot('west_gate');
+    closeMinigameModal();
+    showCamToast(`🏮 ปล่อยโคมยี่เป็งแล้ว: "${wishText}" ✨`);
+  };
+
+  document.getElementById('btn-balloon-start').onclick = startBalloonGame;
+  document.getElementById('mg-balloon-canvas').addEventListener('pointerdown', (e) => {
+    if (!balloonGame.running) return;
+    const cvs = e.currentTarget;
+    const rect = cvs.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (cvs.width / rect.width);
+    const y = (e.clientY - rect.top) * (cvs.height / rect.height);
+    for (let i = balloonGame.balloons.length - 1; i >= 0; i--) {
+      const b = balloonGame.balloons[i];
+      if (Math.hypot(x - b.x, y - b.y) <= b.r * 1.25) {
+        balloonGame.pops.push({ x: b.x, y: b.y, color: b.color, t: 0 });
+        balloonGame.score += b.bonus ? 2 : 1;
+        document.getElementById('mg-balloon-score').textContent = balloonGame.score;
+        balloonGame.balloons.splice(i, 1);
+        balloonGame.balloons.push(spawnBalloonItem(Math.random() < 0.18));
+        sfx.playPop();
+        break;
+      }
+    }
+  });
 
   // ============================================================
   // 9. MAIN 60 FPS RENDER LOOP
@@ -2749,6 +3512,18 @@
       }
     }
 
+    if (STATE.minigameModalOpen) {
+      if (activeMinigame === 'coin' && coinGame.running) {
+        coinGame.phase += dt;
+        coinGame.pos = 50 + Math.sin(coinGame.phase * 3.2) * 44;
+        const cFill = document.getElementById('coin-meter-fill');
+        if (cFill) cFill.style.left = coinGame.pos + '%';
+      } else if (activeMinigame === 'lantern' && !lanternGame.launched && lanternGame.heat > 8 && lanternGame.heat < 100) {
+        lanternGame.heat = Math.max(8, lanternGame.heat - dt * 6);
+        updateLanternUI();
+      }
+    }
+
     if (ritual.active) {
       toto.root.visible = true;
       fpHands.visible = false;
@@ -2795,6 +3570,7 @@
     if (ritual.active && ritual.entry && ritual.entry.mesh) {
       toto.root.visible = true;
       fpHands.visible = false;
+      dressingFillLight.intensity = 0.9;
       const kPos = ritual.entry.mesh.position;
       if (ritual.stage === 'LIGHT') {
         camTargetPos.set(7.35, 0.88, 9.45);
@@ -2833,6 +3609,7 @@
         mobileSheet ? 1.48 : 1.38,
         toto.pos.z - fwd.z * 2.75 + right.z * shift
       );
+      dressingFillLight.intensity = 0.9;
       dressingFillLight.visible = true;
       dressingFillLight.position.set(camTargetPos.x, 1.85, camTargetPos.z);
       camera.position.lerp(camTargetPos, Math.min(1, dt * 8));
@@ -2843,11 +3620,41 @@
       );
       curLookAt.lerp(camLookAt, Math.min(1, dt * 10));
       camera.lookAt(curLookAt);
+    } else if (STATE.krathongModalOpen) {
+      toto.root.visible = false;
+      fpHands.visible = false;
+      if (!krathongManualDrag) krathongPreviewYaw += dt * 0.45;
+      if (typeof charRefs.setWorkshopPreviewYaw === 'function') {
+        charRefs.setWorkshopPreviewYaw(krathongPreviewYaw);
+      }
+      const mobileSheet = window.innerWidth <= 760;
+      if (mobileSheet) {
+        camTargetPos.set(6.0, 0.88, 8.05);
+        camLookAt.set(6.0, -0.26, 9.65);
+      } else {
+        camTargetPos.set(5.52, 0.78, 8.05);
+        camLookAt.set(5.52, 0.08, 9.65);
+      }
+      dressingFillLight.intensity = 0.42;
+      dressingFillLight.visible = true;
+      dressingFillLight.position.set(5.6, 1.85, 8.2);
+      camera.position.lerp(camTargetPos, Math.min(1, dt * 8));
+      curLookAt.lerp(camLookAt, Math.min(1, dt * 10));
+      camera.lookAt(curLookAt);
+    } else if (STATE.minigameModalOpen && activeMinigame === 'coin') {
+      toto.root.visible = false;
+      fpHands.visible = false;
+      camTargetPos.set(6.0, 2.5, 5.4);
+      camLookAt.set(8.0, 0.7, 36.0);
+      camera.position.lerp(camTargetPos, Math.min(1, dt * 6));
+      curLookAt.lerp(camLookAt, Math.min(1, dt * 7));
+      camera.lookAt(curLookAt);
     } else if (STATE.photoMode && STATE.selfieMode) {
       toto.root.visible = true;
       fpHands.visible = false;
       const fwd = getDressingCamDir(toto.pos);
       camTargetPos.set(toto.pos.x - fwd.x * 2.45, 1.48, toto.pos.z - fwd.z * 2.45);
+      dressingFillLight.intensity = 0.9;
       dressingFillLight.visible = true;
       dressingFillLight.position.set(camTargetPos.x, 1.82, camTargetPos.z);
       camera.position.lerp(camTargetPos, Math.min(1, dt * 8));

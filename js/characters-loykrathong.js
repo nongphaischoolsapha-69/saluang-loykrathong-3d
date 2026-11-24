@@ -30,9 +30,11 @@
   // ============================================================
   // 1. DETAILED LAYERED 3D KRATHONG WORKSHOP BUILDER
   // ============================================================
-  function createKrathongMesh(baseId, flowerId, isVip) {
+  function createKrathongMesh(baseId, flowerId, isVip, candleId, toppingId) {
     const baseKey = baseId || (isVip ? 'gold' : 'banana');
     const flowerKey = flowerId || 'lotus';
+    const candleKey = candleId || 'gold';
+    const toppingKey = toppingId || 'coin';
     const g = new THREE.Group();
 
     const isGold = baseKey === 'gold' || !!isVip;
@@ -81,28 +83,39 @@
     }
 
     // Flower arrangement circle
-    const fCol = flowerKey === 'marigold' ? 0xfacc15 : (flowerKey === 'orchid' ? 0xa855f7 : 0xf472b6);
-    const flowerMat = new THREE.MeshStandardMaterial({ color: fCol, roughness: 0.48 });
+    const fCol = flowerKey === 'marigold' ? 0xfacc15
+      : (flowerKey === 'orchid' ? 0xa855f7
+      : (flowerKey === 'globe' ? 0xe11d48 : 0xf472b6));
+    const flowerMat = new THREE.MeshStandardMaterial({ color: fCol, roughness: 0.45 });
+    const centerDotMat = flowerKey === 'globe' ? new THREE.MeshBasicMaterial({ color: 0xfde047 }) : null;
     const blossomCount = 8;
     for (let i = 0; i < blossomCount; i++) {
       const a = (i / blossomCount) * Math.PI * 2;
-      const blossom = new THREE.Mesh(
-        flowerKey === 'lotus' ? new THREE.ConeGeometry(0.042, 0.075, 5) : new THREE.SphereGeometry(0.042, 6, 6),
-        flowerMat
-      );
+      const geom = flowerKey === 'lotus'
+        ? new THREE.ConeGeometry(0.042, 0.075, 5)
+        : new THREE.SphereGeometry(flowerKey === 'globe' ? 0.036 : 0.042, 6, 6);
+      const blossom = new THREE.Mesh(geom, flowerMat);
       blossom.position.set(Math.cos(a) * 0.11, 0.125, Math.sin(a) * 0.11);
       if (flowerKey === 'lotus') {
         blossom.rotation.z = -Math.cos(a) * 0.2;
         blossom.rotation.x = Math.sin(a) * 0.2;
+      } else if (flowerKey === 'globe' && centerDotMat) {
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.011, 4, 4), centerDotMat);
+        dot.position.set(Math.cos(a) * 0.11, 0.155, Math.sin(a) * 0.11);
+        g.add(dot);
       }
       g.add(blossom);
     }
 
-    // Center candle + flickering flame
-    const candle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.016, 0.018, 0.16, 7),
-      new THREE.MeshBasicMaterial({ color: 0xfef3c7 })
-    );
+    // Center candle (tinted by user-selected auspicious candle color) + flickering flame
+    const candleHexMap = { gold: 0xfef08a, pink: 0xf9a8d4, red: 0xf87171, white: 0xf8fafc };
+    const candleMat = new THREE.MeshStandardMaterial({
+      color: candleHexMap[candleKey] || 0xfef08a,
+      emissive: candleHexMap[candleKey] || 0xfef08a,
+      emissiveIntensity: 0.22,
+      roughness: 0.4
+    });
+    const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.019, 0.16, 8), candleMat);
     candle.position.y = 0.16;
     const flame = new THREE.Mesh(
       new THREE.SphereGeometry(0.028, 6, 6),
@@ -125,6 +138,76 @@
       embers.push(ember);
       g.add(stick, ember);
     });
+
+    // Handmade ornament / auspicious topping (lightweight 2-6 primitives, zero extra lights)
+    if (toppingKey === 'coin') {
+      const coinMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.85, roughness: 0.2 });
+      for (let c = 0; c < 3; c++) {
+        const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.006, 10), coinMat);
+        coin.position.set(c === 1 ? 0.014 : -0.008, 0.102 + c * 0.007, 0.072);
+        g.add(coin);
+      }
+    } else if (toppingKey === 'swan') {
+      const swanMat = new THREE.MeshStandardMaterial({ color: 0xecfccb, roughness: 0.42 });
+      const wingMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.48 });
+      const beakMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+      const swanGrp = new THREE.Group();
+      const sBody = new THREE.Mesh(new THREE.SphereGeometry(0.036, 7, 6), swanMat);
+      sBody.scale.set(0.85, 0.72, 1.35);
+      const sNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.011, 0.072, 6), swanMat);
+      sNeck.position.set(0, 0.042, 0.034);
+      sNeck.rotation.x = 0.25;
+      const sHead = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), swanMat);
+      sHead.position.set(0, 0.076, 0.046);
+      const sBeak = new THREE.Mesh(new THREE.ConeGeometry(0.006, 0.018, 4), beakMat);
+      sBeak.rotation.x = Math.PI / 2;
+      sBeak.position.set(0, 0.074, 0.062);
+      const wL = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.048, 4), wingMat);
+      wL.rotation.set(-0.5, 0, -0.35);
+      wL.position.set(-0.026, 0.024, -0.01);
+      const wR = wL.clone();
+      wR.rotation.z = 0.35;
+      wR.position.x = 0.026;
+      swanGrp.add(sBody, sNeck, sHead, sBeak, wL, wR);
+      swanGrp.position.set(0.056, 0.118, 0.052);
+      swanGrp.rotation.y = -0.55;
+      g.add(swanGrp);
+    } else if (toppingKey === 'garland') {
+      const jasmineMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
+      const roseMat = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.42 });
+      const torus = new THREE.Mesh(new THREE.TorusGeometry(0.066, 0.013, 6, 14), jasmineMat);
+      torus.rotation.x = Math.PI / 2;
+      torus.position.y = 0.114;
+      const roseFront = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), roseMat);
+      roseFront.position.set(0, 0.122, 0.066);
+      const roseBack = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), roseMat);
+      roseBack.position.set(0, 0.122, -0.066);
+      g.add(torus, roseFront, roseBack);
+    } else if (toppingKey === 'lotus_bud') {
+      const budMat = new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.4 });
+      const cupMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.55 });
+      [-1, 1].forEach(side => {
+        const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.014, 0.024, 6), cupMat);
+        cup.position.set(side * 0.056, 0.112, 0.042);
+        const bud = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.068, 6), budMat);
+        bud.position.set(side * 0.058, 0.148, 0.044);
+        bud.rotation.z = -side * 0.18;
+        g.add(cup, bud);
+      });
+    } else if (toppingKey === 'sparkler') {
+      const stickMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6, roughness: 0.3 });
+      const tipMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+      const spStick = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.22, 5), stickMat);
+      spStick.position.set(0.055, 0.19, 0.032);
+      spStick.rotation.z = -0.22;
+      spStick.rotation.x = 0.14;
+      const spStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.022, 0), tipMat);
+      spStar.position.set(0.08, 0.295, 0.048);
+      const spGlow = TOTO.addGlowSprite(g, 0.08, 0.295, 0.048, 0.44, TOTO.textures.warmGlowTex, 0.85);
+      g.userData.sparklerTip = spStar;
+      g.userData.sparklerGlow = spGlow;
+      g.add(spStick, spStar);
+    }
 
     // Subtle soft water ripple ring around the base
     const rippleRing = new THREE.Mesh(
@@ -152,6 +235,7 @@
     g.userData.rippleRing = rippleRing;
     return g;
   }
+  TOTO.createKrathongMesh = createKrathongMesh;
 
   function setKrathongLit(mesh, isLit) {
     if (!mesh || !mesh.userData) return;
@@ -561,7 +645,9 @@
     function addPondKrathongObject(item, fromPier, onArrive) {
       const baseId = item.isVip ? 'gold' : (item.baseId || 'banana');
       const flowerId = item.flowerId || (item.typeId === 'marigold' ? 'marigold' : 'lotus');
-      const mesh = createKrathongMesh(baseId, flowerId, !!item.isVip);
+      const candleId = item.candleId || 'gold';
+      const toppingId = item.toppingId || 'coin';
+      const mesh = createKrathongMesh(baseId, flowerId, !!item.isVip, candleId, toppingId);
       if (item.isVip) mesh.scale.set(1.42, 1.42, 1.42);
       else if (fromPier) mesh.scale.set(1.22, 1.22, 1.22);
 
@@ -583,6 +669,8 @@
         wish: item.wish || '',
         baseId,
         flowerId,
+        candleId,
+        toppingId,
         isVip: !!item.isVip,
         blessings: Number(item.blessings) || 0,
         mesh,
@@ -648,13 +736,6 @@
       return true;
     }
 
-    // Initial seed krathongs distributed across real-scale 90m x 56m pond
-    [
-      { id: 'seed_init_1', name: 'เจ๊แพรรี่ หอยทอด ผัดไทย', wish: 'สุขสันต์วันเพ็ญเดือนสิบสอง สระหลวง หนองไผ่!', baseId: 'gold', flowerId: 'marigold', isVip: true, blessings: 12, x: 2.5, z: 18.5 },
-      { id: 'seed_init_2', name: 'ชาวบ้านหนองไผ่', wish: 'ขอให้เดินทางปลอดภัย การงานราบรื่น', baseId: 'banana', flowerId: 'lotus', isVip: false, blessings: 7, x: 14.0, z: 21.0 },
-      { id: 'seed_init_3', name: 'ศิษย์เก่าสระหลวง', wish: 'คิดถึงบรรยากาศเดินเล่นริมสระหลวงยามเย็น', baseId: 'coconut', flowerId: 'orchid', isVip: false, blessings: 5, x: -8.5, z: 27.5 }
-    ].forEach(seed => addPondKrathongObject(seed, false));
-
     function launchMiniGameKrathong(baseId, flowerId, meta, onArrive) {
       const item = {
         id: (meta && meta.id) || ('my_' + Date.now()),
@@ -662,6 +743,8 @@
         wish: (meta && meta.wish) || 'ขอให้มีความสุข',
         baseId: baseId || 'banana',
         flowerId: flowerId || 'lotus',
+        candleId: (meta && meta.candleId) || 'gold',
+        toppingId: (meta && meta.toppingId) || 'coin',
         isVip: !!(meta && meta.isVip),
         blessings: 0
       };
@@ -675,6 +758,8 @@
         wish: (meta && meta.wish) || 'ขอให้มีความสุข',
         baseId: baseId || 'banana',
         flowerId: flowerId || 'lotus',
+        candleId: (meta && meta.candleId) || 'gold',
+        toppingId: (meta && meta.toppingId) || 'coin',
         isVip: !!(meta && meta.isVip),
         blessings: 0
       };
@@ -686,6 +771,107 @@
       entry.vz = 0;
       setKrathongLit(entry.mesh, false);
       return entry;
+    }
+
+    // Zero-Lag Live 3D Workshop Preview (reuses main scene, no extra WebGL context)
+    const PREVIEW_POS = { x: 6.0, y: -0.10, z: 9.65 };
+    const workshopPreview = { group: null, mesh: null, popT: 1, yaw: 0 };
+    const coinTosses = [];
+
+    function disposeGroupMeshes(grp) {
+      if (!grp) return;
+      grp.traverse(obj => {
+        if (obj.geometry && obj.geometry.dispose) obj.geometry.dispose();
+        if (obj.material) {
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach(m => { if (m && m.dispose) m.dispose(); });
+        }
+      });
+    }
+
+    function hideWorkshopPreview() {
+      if (workshopPreview.group) {
+        scene.remove(workshopPreview.group);
+        disposeGroupMeshes(workshopPreview.group);
+        workshopPreview.group = null;
+        workshopPreview.mesh = null;
+      }
+    }
+
+    function showWorkshopPreview(baseId, flowerId, isVip, candleId, toppingId, animatePop) {
+      hideWorkshopPreview();
+      const wrap = new THREE.Group();
+      wrap.position.set(PREVIEW_POS.x, PREVIEW_POS.y, PREVIEW_POS.z);
+
+      const halo = new THREE.Mesh(
+        new THREE.RingGeometry(0.48, 0.56, 24),
+        new THREE.MeshBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+      );
+      halo.rotation.x = -Math.PI / 2;
+      halo.position.y = 0.015;
+      wrap.add(halo);
+
+      const kMesh = createKrathongMesh(baseId, flowerId, isVip, candleId, toppingId);
+      kMesh.scale.set(1.65, 1.65, 1.65);
+      if (kMesh.userData && kMesh.userData.glowSprite) {
+        kMesh.userData.glowSprite.scale.set(0.52, 0.52, 1);
+        kMesh.userData.glowSprite.material.opacity = 0.32;
+      }
+      wrap.add(kMesh);
+      wrap.rotation.y = workshopPreview.yaw;
+      scene.add(wrap);
+
+      workshopPreview.group = wrap;
+      workshopPreview.mesh = kMesh;
+      workshopPreview.popT = animatePop ? 0 : 1;
+
+      if (animatePop) {
+        for (let i = 0; i < 5; i++) {
+          const ang = (i / 5) * Math.PI * 2;
+          const sp = new THREE.Mesh(
+            new THREE.SphereGeometry(0.028, 5, 5),
+            new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xfef08a : 0xf9a8d4, transparent: true, opacity: 1 })
+          );
+          sp.position.set(PREVIEW_POS.x, PREVIEW_POS.y + 0.32, PREVIEW_POS.z);
+          scene.add(sp);
+          ritualSparkles.push({
+            mesh: sp,
+            vx: Math.cos(ang) * 0.65,
+            vy: 0.7 + Math.random() * 0.5,
+            vz: Math.sin(ang) * 0.65,
+            life: 0,
+            maxLife: 0.55
+          });
+        }
+      }
+    }
+
+    function setWorkshopPreviewYaw(yaw) {
+      workshopPreview.yaw = yaw;
+      if (workshopPreview.group) workshopPreview.group.rotation.y = yaw;
+    }
+
+    function launchCoinToss(startPos, isHit, onLand) {
+      const coinMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.09, 0.09, 0.02, 12),
+        new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.88, roughness: 0.18, emissive: 0xca8a04, emissiveIntensity: 0.25 })
+      );
+      const sx = startPos ? startPos.x : 6.0;
+      const sz = startPos ? startPos.z : 6.2;
+      const tx = isHit ? 8.0 : (8.0 + (Math.random() > 0.5 ? 4.4 : -4.4));
+      const ty = isHit ? 0.65 : -0.15;
+      const tz = isHit ? 36.0 : 34.2;
+      coinMesh.position.set(sx, 1.35, sz);
+      scene.add(coinMesh);
+      coinTosses.push({
+        mesh: coinMesh,
+        sx, sy: 1.35, sz,
+        tx, ty, tz,
+        life: 0,
+        dur: 1.15,
+        isHit: !!isHit,
+        onLand: onLand || null
+      });
     }
 
     function igniteRitualKrathong(entry) {
@@ -813,6 +999,58 @@
       });
 
       if (TOTO.STATE.loyKrathongMode) {
+        if (workshopPreview.group) {
+          workshopPreview.group.position.y = PREVIEW_POS.y + Math.sin(elapsed * 2.5) * 0.018;
+          workshopPreview.group.rotation.y = workshopPreview.yaw;
+          if (workshopPreview.popT < 1 && workshopPreview.mesh) {
+            workshopPreview.popT = Math.min(1, workshopPreview.popT + dt * 3.125);
+            const p = workshopPreview.popT;
+            const mult = p < 0.65 ? (0.78 + (p / 0.65) * 0.29) : (1.07 - ((p - 0.65) / 0.35) * 0.07);
+            const s = 1.65 * mult;
+            workshopPreview.mesh.scale.set(s, s, s);
+          }
+          if (workshopPreview.mesh && workshopPreview.mesh.userData.sparklerTip) {
+            const st = 0.85 + Math.sin(elapsed * 18) * 0.28;
+            workshopPreview.mesh.userData.sparklerTip.scale.set(st, st, st);
+          }
+        }
+
+        for (let i = coinTosses.length - 1; i >= 0; i--) {
+          const ct = coinTosses[i];
+          ct.life += dt;
+          const u = Math.min(1, ct.life / ct.dur);
+          ct.mesh.position.x = ct.sx + (ct.tx - ct.sx) * u;
+          ct.mesh.position.z = ct.sz + (ct.tz - ct.sz) * u;
+          ct.mesh.position.y = ct.sy + (ct.ty - ct.sy) * u + Math.sin(u * Math.PI) * 5.2;
+          ct.mesh.rotation.x += dt * 16;
+          ct.mesh.rotation.z += dt * 11;
+          if (u >= 1) {
+            const landPos = ct.mesh.position.clone();
+            scene.remove(ct.mesh);
+            ct.mesh.geometry.dispose();
+            ct.mesh.material.dispose();
+            coinTosses.splice(i, 1);
+            for (let k = 0; k < 6; k++) {
+              const ang = (k / 6) * Math.PI * 2;
+              const sp = new THREE.Mesh(
+                new THREE.SphereGeometry(0.045, 5, 5),
+                new THREE.MeshBasicMaterial({ color: ct.isHit ? (k % 2 === 0 ? 0xfde047 : 0xffffff) : 0x7dd3fc, transparent: true, opacity: 1 })
+              );
+              sp.position.set(landPos.x, landPos.y + 0.12, landPos.z);
+              scene.add(sp);
+              ritualSparkles.push({
+                mesh: sp,
+                vx: Math.cos(ang) * 1.15,
+                vy: 1.2 + Math.random() * 0.8,
+                vz: Math.sin(ang) * 1.15,
+                life: 0,
+                maxLife: 0.72
+              });
+            }
+            if (ct.onLand) ct.onLand(ct.isHit);
+          }
+        }
+
         for (let i = ritualSparkles.length - 1; i >= 0; i--) {
           const rs = ritualSparkles[i];
           rs.life += dt;
@@ -847,6 +1085,10 @@
           if (pk.mesh.userData.rippleRing) {
             const rp = 1 + Math.sin(elapsed * 3.0 + pk.phase) * 0.12;
             pk.mesh.userData.rippleRing.scale.set(rp, rp, 1);
+          }
+          if (pk.mesh.userData.sparklerTip) {
+            const st = 0.85 + Math.sin(elapsed * 18 + pk.phase) * 0.28;
+            pk.mesh.userData.sparklerTip.scale.set(st, st, st);
           }
 
           if (pk.isMiniGame) {
@@ -943,6 +1185,10 @@
       spawnRitualKrathong,
       igniteRitualKrathong,
       releaseRitualKrathong,
+      showWorkshopPreview,
+      hideWorkshopPreview,
+      setWorkshopPreviewYaw,
+      launchCoinToss,
       spawnSkyLantern,
       launchFirework,
       launchVipFireworkSalute,

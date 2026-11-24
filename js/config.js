@@ -26,8 +26,36 @@
   TOTO.KRATHONG_FLOWERS = [
     { id: 'lotus', name: 'ดอกบัวชมพู', color: 0xf472b6, desc: 'กลีบบัวฉัตรสิริมงคล' },
     { id: 'marigold', name: 'ดอกดาวเรือง', color: 0xfacc15, desc: 'สีทองรุ่งเรืองสว่างไสว' },
-    { id: 'orchid', name: 'กล้วยไม้ม่วง', color: 0xa855f7, desc: 'อ่อนช้อยงดงามร่วมสมัย' }
+    { id: 'orchid', name: 'กล้วยไม้ม่วง', color: 0xa855f7, desc: 'อ่อนช้อยงดงามร่วมสมัย' },
+    { id: 'globe', name: 'บานไม่รู้โรย', color: 0xe11d48, desc: 'สีบานเย็นสดใส รักมั่นคงไม่โรยรา' }
   ];
+
+  TOTO.KRATHONG_CANDLES = [
+    { id: 'gold', name: 'เทียนเหลืองทอง', color: 0xfde047, hex: '#fde047', desc: 'เสริมการเงินรุ่งเรือง' },
+    { id: 'pink', name: 'เทียนชมพู', color: 0xf9a8d4, hex: '#f9a8d4', desc: 'เสริมความรักเมตตา' },
+    { id: 'red', name: 'เทียนแดงมงคล', color: 0xef4444, hex: '#ef4444', desc: 'เสริมโชคลาภพุ่งแรง' },
+    { id: 'white', name: 'เทียนขาวบริสุทธิ์', color: 0xf8fafc, hex: '#f8fafc', desc: 'เสริมความสงบร่มเย็น' }
+  ];
+
+  TOTO.KRATHONG_TOPPINGS = [
+    { id: 'coin', name: '🪙 เหรียญมงคล 9 บาท', desc: 'วางเหรียญทองเสริมทรัพย์' },
+    { id: 'swan', name: '🦢 หงส์ใบตองจิ๋ว', desc: 'พับหงส์น้อยประณีตสง่างาม' },
+    { id: 'garland', name: '🌺 พวงมาลัยจิ๋ว', desc: 'มาลัยดอกมะลิ-กุหลาบคล้องขอบ' },
+    { id: 'lotus_bud', name: '🪷 บัวตูมคู่มงคล', desc: 'ดอกบัวตูมสีชมพูตั้งคู่กลาง' },
+    { id: 'sparkler', name: '✨ ไฟเย็นจิ๋ว', desc: 'ก้านไฟเย็นเปล่งประกายระยิบ' }
+  ];
+
+  TOTO.PASSPORT_SPOTS = [
+    { id: 'pier', landmarkId: 'pier', icon: '🪷', title: 'ท่าน้ำสระหลวง (ทิศใต้)', task: 'ลอยกระทง หรือ โยนเหรียญน้ำพุ' },
+    { id: 'toto', landmarkId: 'toto', icon: '🦪', title: 'เจ๊แพรรี่ หอยทอด ผัดไทย', task: 'ลองผัดหอยทอด/ผัดไทย 1 กระทะ' },
+    { id: 'west_gate', landmarkId: 'west_gate', icon: '🏮', title: 'ซุ้มประตูเทศบาลฯ (ทิศตะวันตก)', task: 'ปล่อยโคมยี่เป็งเลี้ยงลมร้อน' },
+    { id: 'north_advice', landmarkId: 'north_advice', icon: '🎯', title: 'ฝั่งตึกแถวแอดไวซ์ (ทิศเหนือ)', task: 'เล่นซุ้มปาโป่งงานวัดหนองไผ่' }
+  ];
+
+  TOTO.KRATHONG_QUOTA = {
+    maxPerHour: 3,
+    windowMs: 60 * 60 * 1000
+  };
 
   // Kept clean for fallback/compatibility
   TOTO.KRATHONG_TYPES = [
@@ -142,7 +170,7 @@
     money: 0,
     served: 0,
     rating: 5.0,
-    ratingCount: 4,
+    ratingCount: 0,
     combo: 0,
     gameMinutes: 20 * 60,
     endless: false,
@@ -157,6 +185,8 @@
     sponsorModalOpen: false,
     searchModalOpen: false,
     avatarModalOpen: false,
+    minigameModalOpen: false,
+    passportModalOpen: false,
     emoteMenuOpen: false,
     onlineCount: 1,
     cookPanelOpen: false,
@@ -171,6 +201,8 @@
     },
     selectedBase: 'banana',
     selectedFlower: 'lotus',
+    selectedCandle: 'gold',
+    selectedTopping: 'coin',
     selectedKrathong: 'lotus',
     selectedWish: 'wealth',
     vipUnlocked: false,

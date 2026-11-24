@@ -1,13 +1,10 @@
 {
-  "totalVisits": 33,
-  "totalKrathongsAllTime": 16,
-  "totalBlessings": 5,
-  "totalFireworks": 2,
-  "sponsorClicks": {
-    "south_pier_billboard": 2,
-    "south_rental_booth": 1
-  },
-  "contactOpens": 2,
-  "couponOpens": 8,
-  "updatedAt": "2026-11-24T00:03:35.980Z"
+  "totalVisits": 2,
+  "totalKrathongsAllTime": 0,
+  "totalBlessings": 0,
+  "totalFireworks": 0,
+  "sponsorClicks": {},
+  "contactOpens": 0,
+  "couponOpens": 0,
+  "updatedAt": "2026-11-24T00:30:37.994Z"
 }
