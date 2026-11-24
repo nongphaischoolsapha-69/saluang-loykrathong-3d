@@ -136,6 +136,15 @@
     lineUrl: 'https://line.me/ti/p/~nineza4456'
   };
 
+  TOTO.DEV_CREDIT = {
+    devName: 'Nine',
+    shortLine: 'สร้างสรรค์โดย Nine • รับทำเว็บไซต์ & เว็บ 3D ออนไลน์ (LINE: nineza4456)',
+    cardLine: 'พัฒนาเว็บ 3D โดย Nine • รับทำเว็บไซต์ / เว็บกิจกรรม • LINE: nineza4456',
+    ctaLine: 'รับทำเว็บไซต์ร้านค้า / เว็บกิจกรรม 3D แบบนี้',
+    lineId: 'nineza4456',
+    lineUrl: 'https://line.me/ti/p/~nineza4456'
+  };
+
   TOTO.SPONSOR_SLOTS = [
     {
       id: 'south_pier_billboard',

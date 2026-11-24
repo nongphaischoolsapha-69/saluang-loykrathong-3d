@@ -1417,6 +1417,12 @@
     ctx.font = '400 21px Prompt, sans-serif';
     ctx.fillText(mono.shopAddress || 'ซอยสระหลวงใต้ อ.หนองไผ่ จ.เพชรบูรณ์', 540, 1212);
 
+    const devCred = (TOTO.DEV_CREDIT && TOTO.DEV_CREDIT.cardLine)
+      || 'พัฒนาเว็บ 3D โดย Nine • รับทำเว็บไซต์ / เว็บกิจกรรม • LINE: nineza4456';
+    ctx.fillStyle = 'rgba(232, 199, 133, 0.85)';
+    ctx.font = '500 18px Prompt, sans-serif';
+    ctx.fillText(devCred, 540, 1284);
+
     const link = document.createElement('a');
     link.download = `loy-krathong-saluang-${Date.now()}.png`;
     link.href = canvas.toDataURL('image/png');
